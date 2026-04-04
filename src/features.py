@@ -217,11 +217,8 @@ def _driver_quality_feature(results: pd.DataFrame) -> pd.DataFrame:
 
 def _season_points_share(standings: pd.DataFrame) -> pd.DataFrame:
     """Target variable: each constructor's share of all points that season."""
-    season_total = (
-        standings.groupby("year")["total_points"].sum().rename("season_total")
-    )
-    df = standings.merge(season_total, on="year")
-    df["season_points_share"] = df["total_points"] / df["season_total"]
+    df = standings.copy()
+    df["season_points_share"] = df["points_share"]
     return df[["year", "constructor_canonical", "season_points_share"]]
 
 
