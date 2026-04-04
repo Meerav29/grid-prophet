@@ -72,7 +72,7 @@ def collect_race_results(start_year: int, end_year: int) -> pd.DataFrame:
                         "grid_position": driver.get("GridPosition", None),
                         "finish_position": driver.get("Position", None),
                         "classification": classification,
-                        "points": driver.get("Points", 0.0),
+                        "points": float(driver.get("Points") or 0.0),
                     }
                 )
 
