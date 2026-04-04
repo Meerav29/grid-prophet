@@ -107,22 +107,43 @@ def main():
     parser = argparse.ArgumentParser(description="Collect F1 race results via FastF1.")
     parser.add_argument("--start-year", type=int, default=2014)
     parser.add_argument("--end-year", type=int, default=2025)
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip years already present in race_results.csv and append new ones.",
+    )
     args = parser.parse_args()
 
     os.makedirs(DATA_DIR, exist_ok=True)
     os.makedirs(CACHE_DIR, exist_ok=True)
     fastf1.Cache.enable_cache(CACHE_DIR)
 
-    log.info(
-        "Collecting F1 race results %d–%d ...", args.start_year, args.end_year
-    )
-    race_results = collect_race_results(args.start_year, args.end_year)
+    race_csv = os.path.join(DATA_DIR, "race_results.csv")
 
-    if race_results.empty:
+    existing = pd.DataFrame()
+    effective_start = args.start_year
+    if args.resume and os.path.exists(race_csv):
+        existing = pd.read_csv(race_csv)
+        if not existing.empty:
+            last_complete_year = int(existing["year"].max())
+            effective_start = last_complete_year + 1
+            log.info(
+                "Resuming: existing data covers up to %d, collecting %d–%d ...",
+                last_complete_year, effective_start, args.end_year,
+            )
+
+    if effective_start > args.end_year:
+        log.info("Nothing to collect — data already covers up to %d.", args.end_year)
+        return
+
+    log.info("Collecting F1 race results %d–%d ...", effective_start, args.end_year)
+    new_results = collect_race_results(effective_start, args.end_year)
+
+    if new_results.empty and existing.empty:
         log.error("No race results collected. Exiting.")
         sys.exit(1)
 
-    race_csv = os.path.join(DATA_DIR, "race_results.csv")
+    race_results = pd.concat([existing, new_results], ignore_index=True) if not existing.empty else new_results
     race_results.to_csv(race_csv, index=False)
     log.info("Saved %d rows → %s", len(race_results), race_csv)
 
