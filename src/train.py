@@ -1,6 +1,7 @@
 """Train XGBoost model on historical seasons with rule-change-year weighting."""
 
 import argparse
+import copy
 import logging
 import os
 import pickle
@@ -87,3 +88,20 @@ def leave_one_season_out_cv(model, X: pd.DataFrame, y: pd.Series,
         results.append({"season": held_out, "spearman": spearman, "mae": mae})
 
     return results
+
+
+def tune_rule_change_weight(model, X: pd.DataFrame, y: pd.Series,
+                             meta: pd.DataFrame) -> tuple[float, dict]:
+    """Try each candidate weight via LOOCV. Returns (best_weight, {weight: avg_spearman})."""
+    weight_scores = {}
+
+    for w in RULE_CHANGE_WEIGHT_CANDIDATES:
+        m = copy.deepcopy(model)
+        folds = leave_one_season_out_cv(m, X, y, meta, rule_change_weight=w)
+        spearmans = [f["spearman"] for f in folds if not np.isnan(f["spearman"])]
+        avg = float(np.mean(spearmans)) if spearmans else float("nan")
+        weight_scores[w] = avg
+        log.info("  Weight %.1f → avg Spearman: %.4f", w, avg)
+
+    best_weight = max(weight_scores, key=lambda w: (not np.isnan(weight_scores[w]), weight_scores[w]))
+    return best_weight, weight_scores

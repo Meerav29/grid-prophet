@@ -7,7 +7,7 @@ import pytest
 from sklearn.linear_model import Ridge
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from train import load_data, FEATURE_COLS, leave_one_season_out_cv
+from train import load_data, FEATURE_COLS, leave_one_season_out_cv, tune_rule_change_weight
 
 def test_load_data_returns_train_split(tmp_path):
     # Minimal fake features.csv — 3 seasons, 2 constructors each
@@ -95,3 +95,25 @@ def test_loocv_accepts_nonidentity_weight():
     assert len(results_weighted) == 4
     for fold in results_weighted:
         assert isinstance(fold["spearman"], float)
+
+def test_tune_weight_returns_best_from_candidates():
+    X, y, meta = _make_fake_data()
+    model = Pipeline([("imp", SimpleImputer()), ("reg", Ridge())])
+    best_weight, weight_scores = tune_rule_change_weight(model, X, y, meta)
+    assert best_weight in [1.0, 1.5, 2.0, 2.5, 3.0]
+    assert set(weight_scores.keys()) == {1.0, 1.5, 2.0, 2.5, 3.0}
+    for v in weight_scores.values():
+        assert isinstance(v, float)
+
+def test_tune_weight_picks_highest_spearman():
+    X, y, meta = _make_fake_data()
+    model = Pipeline([("imp", SimpleImputer()), ("reg", Ridge())])
+    best_weight, weight_scores = tune_rule_change_weight(model, X, y, meta)
+    best_score = weight_scores[best_weight]
+    for score in weight_scores.values():
+        if np.isnan(best_score) and np.isnan(score):
+            continue
+        elif np.isnan(best_score):
+            assert False, "best_score is NaN but other scores are not"
+        else:
+            assert best_score >= score
