@@ -7,7 +7,8 @@ import pytest
 from sklearn.linear_model import Ridge
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from train import load_data, FEATURE_COLS, leave_one_season_out_cv, tune_rule_change_weight, compare_models
+import pickle
+from train import load_data, FEATURE_COLS, leave_one_season_out_cv, tune_rule_change_weight, compare_models, retrain_and_save
 
 def test_load_data_returns_train_split(tmp_path):
     # Minimal fake features.csv — 3 seasons, 2 constructors each
@@ -138,3 +139,26 @@ def test_compare_models_winner_has_higher_spearman():
             assert xgb_avg >= ridge_avg or np.isnan(ridge_avg)
         else:
             assert ridge_avg >= xgb_avg or np.isnan(xgb_avg)
+
+def test_retrain_and_save_creates_pkl(tmp_path):
+    X, y, meta = _make_fake_data()
+    pipeline = Pipeline([("imp", SimpleImputer()), ("reg", Ridge())])
+    model_path = str(tmp_path / "model.pkl")
+    retrain_and_save(
+        pipeline, X, y, meta,
+        winner_name="Ridge",
+        rule_change_weight=1.5,
+        model_path=model_path,
+    )
+    assert os.path.exists(model_path)
+    with open(model_path, "rb") as f:
+        bundle = pickle.load(f)
+    assert "model" in bundle
+    assert "feature_cols" in bundle
+    assert "winner_name" in bundle
+    assert "rule_change_weight" in bundle
+    assert bundle["feature_cols"] == FEATURE_COLS
+    assert bundle["winner_name"] == "Ridge"
+    assert bundle["rule_change_weight"] == 1.5
+    preds = bundle["model"].predict(X)
+    assert len(preds) == len(X)

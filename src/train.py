@@ -143,3 +143,104 @@ def compare_models(X: pd.DataFrame, y: pd.Series, meta: pd.DataFrame,
     winner_name = max(avg_spearmans, key=lambda n: avg_spearmans[n])
     winner_pipeline = copy.deepcopy(candidates[winner_name])
     return winner_name, winner_pipeline, cv_df
+
+
+def retrain_and_save(pipeline, X: pd.DataFrame, y: pd.Series, meta: pd.DataFrame,
+                     winner_name: str, rule_change_weight: float, model_path: str):
+    """Retrain pipeline on all data with best weight and save a bundle to model_path."""
+    rc_col = X["is_rule_change_year"]
+    sample_weights = np.where(rc_col == 1, rule_change_weight, 1.0)
+
+    if isinstance(pipeline, Pipeline):
+        last_step_name = pipeline.steps[-1][0]
+        pipeline.fit(X, y, **{f"{last_step_name}__sample_weight": sample_weights})
+    else:
+        pipeline.fit(X, y)
+
+    bundle = {
+        "model": pipeline,
+        "feature_cols": FEATURE_COLS,
+        "winner_name": winner_name,
+        "rule_change_weight": rule_change_weight,
+    }
+    os.makedirs(os.path.dirname(os.path.abspath(model_path)), exist_ok=True)
+    with open(model_path, "wb") as f:
+        pickle.dump(bundle, f)
+    log.info("Saved model bundle → %s", model_path)
+
+
+def _print_summary(winner_name: str, best_weight: float, weight_scores: dict,
+                   cv_df: pd.DataFrame, pipeline):
+    """Print training summary: weight tuning results, model comparison, feature importances."""
+    print("\n" + "=" * 60)
+    print("GRID PROPHET — TRAINING SUMMARY")
+    print("=" * 60)
+
+    print("\n-- Rule-change weight tuning --")
+    for w, s in sorted(weight_scores.items()):
+        marker = " ◄ BEST" if w == best_weight else ""
+        print(f"  weight {w:.1f} → avg Spearman {s:.4f}{marker}")
+
+    print("\n-- Model comparison (leave-one-season-out CV) --")
+    summary = cv_df.groupby("model")[["spearman", "mae"]].mean()
+    for model_name, row in summary.iterrows():
+        marker = " ◄ WINNER" if model_name == winner_name else ""
+        print(f"  {model_name}: avg Spearman {row['spearman']:.4f}, avg MAE {row['mae']:.4f}{marker}")
+
+    print(f"\n-- Winner: {winner_name} (weight={best_weight:.1f}) --")
+
+    last_estimator = pipeline.steps[-1][1]
+    if hasattr(last_estimator, "feature_importances_"):
+        print("\n-- Feature importances (XGBoost) --")
+        for col, imp in sorted(zip(FEATURE_COLS, last_estimator.feature_importances_), key=lambda x: -x[1]):
+            print(f"  {col:<42} {imp:.4f}")
+    elif hasattr(last_estimator, "coef_"):
+        print("\n-- Ridge coefficients --")
+        for col, coef in sorted(zip(FEATURE_COLS, last_estimator.coef_), key=lambda x: -abs(x[1])):
+            print(f"  {col:<42} {coef:+.4f}")
+
+    print("=" * 60 + "\n")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Train Grid Prophet model.")
+    parser.add_argument(
+        "--features", default=os.path.join(DATA_DIR, "features.csv"),
+    )
+    parser.add_argument(
+        "--model-out", default=os.path.join(MODELS_DIR, "Grid_Prophet_model.pkl"),
+    )
+    parser.add_argument(
+        "--cv-out", default=os.path.join(DATA_DIR, "cv_results.csv"),
+    )
+    args = parser.parse_args()
+
+    log.info("Loading data from %s ...", args.features)
+    X, y, meta = load_data(args.features)
+    log.info("Training set: %d rows, %d seasons", len(X), meta["year"].nunique())
+
+    tune_pipeline = Pipeline([("imp", SimpleImputer()), ("reg", Ridge(alpha=1.0))])
+    log.info("Tuning rule-change sample weight ...")
+    best_weight, weight_scores = tune_rule_change_weight(tune_pipeline, X, y, meta)
+    log.info("Best rule-change weight: %.1f", best_weight)
+
+    log.info("Comparing XGBoost vs Ridge ...")
+    winner_name, winner_pipeline, cv_df = compare_models(X, y, meta, best_weight)
+
+    cv_df.to_csv(args.cv_out, index=False)
+    log.info("CV results saved → %s", args.cv_out)
+
+    _print_summary(winner_name, best_weight, weight_scores, cv_df, winner_pipeline)
+
+    log.info("Retraining %s on all data ...", winner_name)
+    retrain_and_save(
+        winner_pipeline, X, y, meta,
+        winner_name=winner_name,
+        rule_change_weight=best_weight,
+        model_path=args.model_out,
+    )
+    log.info("Done. Model saved to %s", args.model_out)
+
+
+if __name__ == "__main__":
+    main()
