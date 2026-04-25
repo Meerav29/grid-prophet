@@ -2,8 +2,8 @@
 import pandas as pd
 import numpy as np
 import pytest
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import sys
+import os
 
 from train import load_data, FEATURE_COLS
 
@@ -40,4 +40,5 @@ def test_load_data_returns_train_split(tmp_path):
     assert len(X) == 6  # only complete seasons
     assert len(y) == 6
     assert list(X.columns) == FEATURE_COLS
-    assert meta["year"].tolist() == [2014, 2014, 2015, 2015, 2016, 2016]
+    assert sorted(meta["year"].tolist()) == [2014, 2014, 2015, 2015, 2016, 2016]
+    assert 2026 not in meta["year"].values

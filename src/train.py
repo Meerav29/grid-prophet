@@ -38,11 +38,7 @@ RULE_CHANGE_WEIGHT_CANDIDATES = [1.0, 1.5, 2.0, 2.5, 3.0]
 
 
 def load_data(csv_path: str):
-    """
-    Load features.csv. Returns (X, y, meta) where meta is a DataFrame with
-    year and constructor columns aligned with X and y.
-    Only rows with non-NaN season_points_share are included (training rows).
-    """
+    """Load features CSV; returns (X, y, meta) for rows with a known target."""
     df = pd.read_csv(csv_path)
     train = df[df["season_points_share"].notna()].copy().reset_index(drop=True)
     X = train[FEATURE_COLS].copy()
