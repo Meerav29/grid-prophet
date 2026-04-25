@@ -96,11 +96,10 @@ def build_2026_features() -> pd.DataFrame:
     driver_q = _driver_quality_feature(results)
 
     # Build output for 2026 constructors only
-    base = pd.DataFrame({
+    features = pd.DataFrame({
         "year": PREDICT_YEAR,
         "constructor_canonical": constructors_2026,
     })
-    features = base.copy()
     for df in [early, rc, momentum, driver_q]:
         features = features.merge(df, on=["year", "constructor_canonical"], how="left")
 

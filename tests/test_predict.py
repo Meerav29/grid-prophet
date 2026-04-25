@@ -4,7 +4,8 @@ import pandas as pd
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from predict import collect_2026_early_rounds
+from predict import collect_2026_early_rounds, build_2026_features
+from train import FEATURE_COLS
 
 
 def test_collect_2026_early_rounds_returns_dataframe():
@@ -48,9 +49,6 @@ def test_collect_2026_early_rounds_filters_to_early_rounds():
     with mock.patch("predict.collect_race_results", return_value=fake_rows):
         result = collect_2026_early_rounds()
     assert result["round"].max() <= 2
-
-
-from predict import build_2026_features
 
 
 def _make_minimal_race_history():
@@ -100,9 +98,6 @@ def test_build_2026_features_returns_2026_rows():
 def test_build_2026_features_has_required_columns():
     """build_2026_features output has all model feature columns."""
     import unittest.mock as mock
-    import sys
-    sys.path.insert(0, "src")
-    from train import FEATURE_COLS
     history = _make_minimal_race_history()
     early_2026 = pd.DataFrame({
         "year": [2026, 2026], "round": [1, 1], "event_name": ["GP", "GP"],
