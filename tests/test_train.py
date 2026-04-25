@@ -7,7 +7,7 @@ import pytest
 from sklearn.linear_model import Ridge
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from train import load_data, FEATURE_COLS, leave_one_season_out_cv, tune_rule_change_weight
+from train import load_data, FEATURE_COLS, leave_one_season_out_cv, tune_rule_change_weight, compare_models
 
 def test_load_data_returns_train_split(tmp_path):
     # Minimal fake features.csv — 3 seasons, 2 constructors each
@@ -117,3 +117,24 @@ def test_tune_weight_picks_highest_spearman():
             assert False, "best_score is NaN but other scores are not"
         else:
             assert best_score >= score
+
+def test_compare_models_returns_winner_and_results():
+    X, y, meta = _make_fake_data()
+    best_weight = 1.0
+    winner_name, winner_model, cv_df = compare_models(X, y, meta, best_weight)
+    assert winner_name in ("XGBoost", "Ridge")
+    assert hasattr(winner_model, "predict")
+    assert set(cv_df.columns) >= {"model", "season", "spearman", "mae"}
+
+def test_compare_models_winner_has_higher_spearman():
+    X, y, meta = _make_fake_data()
+    winner_name, winner_model, cv_df = compare_models(X, y, meta, rule_change_weight=1.0)
+    xgb_avg = cv_df[cv_df["model"] == "XGBoost"]["spearman"].mean()
+    ridge_avg = cv_df[cv_df["model"] == "Ridge"]["spearman"].mean()
+    # Handle NaN case: if both are NaN, that's OK (very small data)
+    # Otherwise, winner should have >= average spearman
+    if not (np.isnan(xgb_avg) and np.isnan(ridge_avg)):
+        if winner_name == "XGBoost":
+            assert xgb_avg >= ridge_avg or np.isnan(ridge_avg)
+        else:
+            assert ridge_avg >= xgb_avg or np.isnan(xgb_avg)

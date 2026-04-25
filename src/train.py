@@ -105,3 +105,41 @@ def tune_rule_change_weight(model, X: pd.DataFrame, y: pd.Series,
 
     best_weight = max(weight_scores, key=lambda w: (not np.isnan(weight_scores[w]), weight_scores[w]))
     return best_weight, weight_scores
+
+
+def compare_models(X: pd.DataFrame, y: pd.Series, meta: pd.DataFrame,
+                   rule_change_weight: float) -> tuple[str, object, pd.DataFrame]:
+    """Run LOOCV for XGBoost and Ridge; return (winner_name, winner_pipeline, cv_df)."""
+    candidates = {
+        "XGBoost": Pipeline([
+            ("imp", SimpleImputer()),
+            ("reg", XGBRegressor(
+                max_depth=4, n_estimators=200, learning_rate=0.05,
+                random_state=42, verbosity=0,
+            )),
+        ]),
+        "Ridge": Pipeline([
+            ("imp", SimpleImputer()),
+            ("reg", Ridge(alpha=1.0)),
+        ]),
+    }
+
+    all_rows = []
+    avg_spearmans = {}
+
+    for name, pipeline in candidates.items():
+        log.info("Running CV for %s ...", name)
+        folds = leave_one_season_out_cv(
+            copy.deepcopy(pipeline), X, y, meta, rule_change_weight
+        )
+        for fold in folds:
+            all_rows.append({"model": name, **fold})
+        spearmans = [f["spearman"] for f in folds if not np.isnan(f["spearman"])]
+        avg = float(np.mean(spearmans)) if spearmans else float("nan")
+        avg_spearmans[name] = avg
+        log.info("  %s avg Spearman: %.4f", name, avg)
+
+    cv_df = pd.DataFrame(all_rows)
+    winner_name = max(avg_spearmans, key=lambda n: avg_spearmans[n])
+    winner_pipeline = copy.deepcopy(candidates[winner_name])
+    return winner_name, winner_pipeline, cv_df
