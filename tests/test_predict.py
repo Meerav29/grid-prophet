@@ -4,7 +4,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from predict import collect_2026_early_rounds, build_2026_features
+from predict import collect_2026_early_rounds, build_2026_features, load_model_bundle, predict_standings
 from train import FEATURE_COLS
 
 
@@ -117,3 +117,54 @@ def test_build_2026_features_has_required_columns():
         result = build_2026_features()
     for col in FEATURE_COLS:
         assert col in result.columns, f"Missing feature column: {col}"
+
+
+import pickle
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import Ridge
+from sklearn.impute import SimpleImputer
+
+
+def _make_fake_bundle(tmp_path):
+    """Create a minimal model bundle pickle for testing."""
+    pipeline = Pipeline([("imp", SimpleImputer()), ("reg", Ridge())])
+    X = pd.DataFrame({col: [0.1, 0.2] for col in FEATURE_COLS})
+    y = pd.Series([0.3, 0.4])
+    pipeline.fit(X, y)
+    bundle = {
+        "model": pipeline,
+        "feature_cols": FEATURE_COLS,
+        "winner_name": "Ridge",
+        "rule_change_weight": 1.5,
+    }
+    path = tmp_path / "test_model.pkl"
+    with open(path, "wb") as f:
+        pickle.dump(bundle, f)
+    return str(path), bundle
+
+
+def test_load_model_bundle_returns_bundle(tmp_path):
+    """load_model_bundle loads and returns a dict with expected keys."""
+    path, _ = _make_fake_bundle(tmp_path)
+    bundle = load_model_bundle(path)
+    assert isinstance(bundle, dict)
+    for key in ("model", "feature_cols", "winner_name", "rule_change_weight"):
+        assert key in bundle
+
+
+def test_predict_standings_returns_ranked_df(tmp_path):
+    """predict_standings returns a DataFrame ranked by predicted_points_share descending."""
+    _, bundle = _make_fake_bundle(tmp_path)
+    features_2026 = pd.DataFrame({
+        "year": [2026, 2026],
+        "constructor": ["Mercedes", "Ferrari"],
+        **{col: [0.5, 0.3] for col in FEATURE_COLS},
+        "season_points_share": [float("nan"), float("nan")],
+    })
+    result = predict_standings(bundle, features_2026)
+    assert isinstance(result, pd.DataFrame)
+    assert "constructor" in result.columns
+    assert "predicted_points_share" in result.columns
+    assert "rank" in result.columns
+    assert result.iloc[0]["rank"] == 1
+    assert result["predicted_points_share"].iloc[0] >= result["predicted_points_share"].iloc[1]

@@ -106,3 +106,24 @@ def build_2026_features() -> pd.DataFrame:
     features = features.rename(columns={"constructor_canonical": "constructor"})
     features["season_points_share"] = np.nan
     return features[features["year"] == PREDICT_YEAR].reset_index(drop=True)
+
+
+def load_model_bundle(model_path: str) -> dict:
+    """Load and return the pickled model bundle."""
+    with open(model_path, "rb") as f:
+        return pickle.load(f)
+
+
+def predict_standings(bundle: dict, features_2026: pd.DataFrame) -> pd.DataFrame:
+    """Run prediction and return a DataFrame ranked by predicted_points_share descending."""
+    model = bundle["model"]
+    feature_cols = bundle["feature_cols"]
+
+    X = features_2026[feature_cols].copy()
+    preds = model.predict(X)
+
+    result = features_2026[["constructor"]].copy()
+    result["predicted_points_share"] = preds
+    result = result.sort_values("predicted_points_share", ascending=False).reset_index(drop=True)
+    result["rank"] = result.index + 1
+    return result
