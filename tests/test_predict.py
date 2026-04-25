@@ -9,7 +9,7 @@ from sklearn.pipeline import Pipeline
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from predict import collect_2026_early_rounds, build_2026_features, load_model_bundle, predict_standings
+from predict import collect_2026_early_rounds, build_2026_features, load_model_bundle, predict_standings, _print_predictions
 from train import FEATURE_COLS
 
 
@@ -167,3 +167,29 @@ def test_predict_standings_returns_ranked_df(tmp_path):
     assert "rank" in result.columns
     assert result.iloc[0]["rank"] == 1
     assert result["predicted_points_share"].iloc[0] >= result["predicted_points_share"].iloc[1]
+
+
+def test_print_predictions_outputs_all_constructors(capsys):
+    """_print_predictions prints one line per constructor."""
+    predictions = pd.DataFrame({
+        "rank": [1, 2, 3],
+        "constructor": ["Mercedes", "Ferrari", "McLaren"],
+        "predicted_points_share": [0.35, 0.28, 0.20],
+    })
+    _print_predictions(predictions, winner_name="XGBoost", rule_change_weight=3.0)
+    captured = capsys.readouterr()
+    assert "Mercedes" in captured.out
+    assert "Ferrari" in captured.out
+    assert "McLaren" in captured.out
+
+
+def test_print_predictions_ranked_order(capsys):
+    """_print_predictions prints constructors in rank order (rank 1 first)."""
+    predictions = pd.DataFrame({
+        "rank": [1, 2],
+        "constructor": ["Mercedes", "Ferrari"],
+        "predicted_points_share": [0.35, 0.28],
+    })
+    _print_predictions(predictions, winner_name="XGBoost", rule_change_weight=3.0)
+    captured = capsys.readouterr()
+    assert captured.out.index("Mercedes") < captured.out.index("Ferrari")

@@ -127,3 +127,57 @@ def predict_standings(bundle: dict, features_2026: pd.DataFrame) -> pd.DataFrame
     result = result.sort_values("predicted_points_share", ascending=False).reset_index(drop=True)
     result["rank"] = result.index + 1
     return result
+
+
+def _print_predictions(predictions: pd.DataFrame, winner_name: str, rule_change_weight: float):
+    """Print a formatted 2026 constructor standings prediction table."""
+    print("\n" + "=" * 60)
+    print("GRID PROPHET - 2026 CONSTRUCTOR CHAMPIONSHIP PREDICTION")
+    print("=" * 60)
+    print(f"Model: {winner_name}  |  Rule-change weight: {rule_change_weight:.1f}")
+    print(f"Based on rounds 1-{EARLY_ROUNDS} early-season data")
+    print()
+    print(f"  {'Rank':<6} {'Constructor':<24} {'Predicted Share':>15}")
+    print("  " + "-" * 48)
+    for _, row in predictions.iterrows():
+        print(f"  {int(row['rank']):<6} {row['constructor']:<24} {row['predicted_points_share']:>14.1%}")
+    print("=" * 60 + "\n")
+
+
+def main():
+    import argparse
+    import fastf1
+
+    parser = argparse.ArgumentParser(description="Generate 2026 Grid Prophet predictions.")
+    parser.add_argument(
+        "--model", default=os.path.join(MODELS_DIR, "Grid_Prophet_model.pkl"),
+    )
+    parser.add_argument(
+        "--out", default=os.path.join(DATA_DIR, "predictions_2026.csv"),
+    )
+    args = parser.parse_args()
+
+    cache_dir = os.path.join(DATA_DIR, "fastf1_cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    fastf1.Cache.enable_cache(cache_dir)
+
+    log.info("Loading model from %s ...", args.model)
+    bundle = load_model_bundle(args.model)
+    log.info("Model: %s  |  rule_change_weight: %.1f", bundle["winner_name"], bundle["rule_change_weight"])
+
+    log.info("Building 2026 features ...")
+    features_2026 = build_2026_features()
+    log.info("2026 constructors: %s", sorted(features_2026["constructor"].tolist()))
+
+    log.info("Running predictions ...")
+    predictions = predict_standings(bundle, features_2026)
+
+    os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+    predictions.to_csv(args.out, index=False)
+    log.info("Predictions saved -> %s", args.out)
+
+    _print_predictions(predictions, bundle["winner_name"], bundle["rule_change_weight"])
+
+
+if __name__ == "__main__":
+    main()
