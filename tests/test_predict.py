@@ -1,6 +1,11 @@
+import pickle
 import sys
 import os
+
 import pandas as pd
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import Ridge
+from sklearn.pipeline import Pipeline
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
@@ -117,12 +122,6 @@ def test_build_2026_features_has_required_columns():
         result = build_2026_features()
     for col in FEATURE_COLS:
         assert col in result.columns, f"Missing feature column: {col}"
-
-
-import pickle
-from sklearn.pipeline import Pipeline
-from sklearn.linear_model import Ridge
-from sklearn.impute import SimpleImputer
 
 
 def _make_fake_bundle(tmp_path):
