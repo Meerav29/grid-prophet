@@ -1,11 +1,13 @@
 # tests/test_train.py
+import sys
+import os
 import pandas as pd
 import numpy as np
 import pytest
-import sys
-import os
-
-from train import load_data, FEATURE_COLS
+from sklearn.linear_model import Ridge
+from sklearn.impute import SimpleImputer
+from sklearn.pipeline import Pipeline
+from train import load_data, FEATURE_COLS, leave_one_season_out_cv
 
 def test_load_data_returns_train_split(tmp_path):
     # Minimal fake features.csv — 3 seasons, 2 constructors each
@@ -43,11 +45,6 @@ def test_load_data_returns_train_split(tmp_path):
     assert sorted(meta["year"].tolist()) == [2014, 2014, 2015, 2015, 2016, 2016]
     assert 2026 not in meta["year"].values
 
-
-from train import leave_one_season_out_cv
-from sklearn.linear_model import Ridge
-from sklearn.impute import SimpleImputer
-from sklearn.pipeline import Pipeline
 
 def _make_fake_data():
     rows = []
@@ -89,3 +86,12 @@ def test_loocv_spearman_is_float():
     for fold in results:
         assert isinstance(fold["spearman"], float)
         assert isinstance(fold["mae"], float)
+
+def test_loocv_accepts_nonidentity_weight():
+    X, y, meta = _make_fake_data()
+    model = Pipeline([("imp", SimpleImputer()), ("reg", Ridge())])
+    # weight=1.0 is identity; weight=2.5 should run without error
+    results_weighted = leave_one_season_out_cv(model, X, y, meta, rule_change_weight=2.5)
+    assert len(results_weighted) == 4
+    for fold in results_weighted:
+        assert isinstance(fold["spearman"], float)

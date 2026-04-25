@@ -8,6 +8,7 @@ import pickle
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
+from sklearn.base import clone
 from sklearn.linear_model import Ridge
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
@@ -54,6 +55,8 @@ def leave_one_season_out_cv(model, X: pd.DataFrame, y: pd.Series,
     results = []
 
     for held_out in seasons:
+        fold_model = clone(model)
+
         train_mask = meta["year"] != held_out
         test_mask = meta["year"] == held_out
 
@@ -66,14 +69,13 @@ def leave_one_season_out_cv(model, X: pd.DataFrame, y: pd.Series,
         rc_col = X_train["is_rule_change_year"]
         sample_weights = np.where(rc_col == 1, rule_change_weight, 1.0)
 
-        try:
-            last_step_name = model.steps[-1][0]
-            fit_params = {f"{last_step_name}__sample_weight": sample_weights}
-            model.fit(X_train, y_train, **fit_params)
-        except TypeError:
-            model.fit(X_train, y_train)
+        if isinstance(fold_model, Pipeline):
+            last_step_name = fold_model.steps[-1][0]
+            fold_model.fit(X_train, y_train, **{f"{last_step_name}__sample_weight": sample_weights})
+        else:
+            fold_model.fit(X_train, y_train)
 
-        preds = model.predict(X_test)
+        preds = fold_model.predict(X_test)
 
         if len(preds) < 2:
             spearman = float("nan")
