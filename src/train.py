@@ -101,7 +101,7 @@ def tune_rule_change_weight(model, X: pd.DataFrame, y: pd.Series,
         spearmans = [f["spearman"] for f in folds if not np.isnan(f["spearman"])]
         avg = float(np.mean(spearmans)) if spearmans else float("nan")
         weight_scores[w] = avg
-        log.info("  Weight %.1f → avg Spearman: %.4f", w, avg)
+        log.info("  Weight %.1f -> avg Spearman: %.4f", w, avg)
 
     best_weight = max(weight_scores, key=lambda w: (not np.isnan(weight_scores[w]), weight_scores[w]))
     return best_weight, weight_scores
@@ -166,25 +166,25 @@ def retrain_and_save(pipeline, X: pd.DataFrame, y: pd.Series, meta: pd.DataFrame
     os.makedirs(os.path.dirname(os.path.abspath(model_path)), exist_ok=True)
     with open(model_path, "wb") as f:
         pickle.dump(bundle, f)
-    log.info("Saved model bundle → %s", model_path)
+    log.info("Saved model bundle -> %s", model_path)
 
 
 def _print_summary(winner_name: str, best_weight: float, weight_scores: dict,
                    cv_df: pd.DataFrame, pipeline):
     """Print training summary: weight tuning results, model comparison, feature importances."""
     print("\n" + "=" * 60)
-    print("GRID PROPHET — TRAINING SUMMARY")
+    print("GRID PROPHET - TRAINING SUMMARY")
     print("=" * 60)
 
     print("\n-- Rule-change weight tuning --")
     for w, s in sorted(weight_scores.items()):
-        marker = " ◄ BEST" if w == best_weight else ""
-        print(f"  weight {w:.1f} → avg Spearman {s:.4f}{marker}")
+        marker = " << BEST" if w == best_weight else ""
+        print(f"  weight {w:.1f}  avg Spearman {s:.4f}{marker}")
 
     print("\n-- Model comparison (leave-one-season-out CV) --")
     summary = cv_df.groupby("model")[["spearman", "mae"]].mean()
     for model_name, row in summary.iterrows():
-        marker = " ◄ WINNER" if model_name == winner_name else ""
+        marker = " << WINNER" if model_name == winner_name else ""
         print(f"  {model_name}: avg Spearman {row['spearman']:.4f}, avg MAE {row['mae']:.4f}{marker}")
 
     print(f"\n-- Winner: {winner_name} (weight={best_weight:.1f}) --")
@@ -228,7 +228,7 @@ def main():
     winner_name, winner_pipeline, cv_df = compare_models(X, y, meta, best_weight)
 
     cv_df.to_csv(args.cv_out, index=False)
-    log.info("CV results saved → %s", args.cv_out)
+    log.info("CV results saved -> %s", args.cv_out)
 
     log.info("Retraining %s on all data ...", winner_name)
     retrain_and_save(
