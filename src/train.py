@@ -45,3 +45,43 @@ def load_data(csv_path: str):
     y = train["season_points_share"].copy()
     meta = train[["year", "constructor"]].copy()
     return X, y, meta
+
+
+def leave_one_season_out_cv(model, X: pd.DataFrame, y: pd.Series,
+                             meta: pd.DataFrame, rule_change_weight: float) -> list[dict]:
+    """Leave-one-season-out CV. Returns list of {season, spearman, mae} dicts."""
+    seasons = sorted(meta["year"].unique())
+    results = []
+
+    for held_out in seasons:
+        train_mask = meta["year"] != held_out
+        test_mask = meta["year"] == held_out
+
+        X_train, y_train = X[train_mask].copy(), y[train_mask].copy()
+        X_test, y_test = X[test_mask].copy(), y[test_mask].copy()
+
+        if len(X_train) == 0 or len(X_test) == 0:
+            continue
+
+        rc_col = X_train["is_rule_change_year"]
+        sample_weights = np.where(rc_col == 1, rule_change_weight, 1.0)
+
+        try:
+            last_step_name = model.steps[-1][0]
+            fit_params = {f"{last_step_name}__sample_weight": sample_weights}
+            model.fit(X_train, y_train, **fit_params)
+        except TypeError:
+            model.fit(X_train, y_train)
+
+        preds = model.predict(X_test)
+
+        if len(preds) < 2:
+            spearman = float("nan")
+        else:
+            corr, _ = spearmanr(preds, y_test)
+            spearman = float(corr)
+
+        mae = float(np.mean(np.abs(preds - y_test.values)))
+        results.append({"season": held_out, "spearman": spearman, "mae": mae})
+
+    return results

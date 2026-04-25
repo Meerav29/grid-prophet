@@ -42,3 +42,50 @@ def test_load_data_returns_train_split(tmp_path):
     assert list(X.columns) == FEATURE_COLS
     assert sorted(meta["year"].tolist()) == [2014, 2014, 2015, 2015, 2016, 2016]
     assert 2026 not in meta["year"].values
+
+
+from train import leave_one_season_out_cv
+from sklearn.linear_model import Ridge
+from sklearn.impute import SimpleImputer
+from sklearn.pipeline import Pipeline
+
+def _make_fake_data():
+    rows = []
+    for year in [2014, 2015, 2016, 2017]:
+        for ctor in ["TeamA", "TeamB"]:
+            rows.append({
+                "year": year, "constructor": ctor,
+                "early_points_share": 0.5 + (year - 2014) * 0.05,
+                "early_avg_finish": 5.0,
+                "is_rule_change_year": int(year == 2014),
+                "rule_change_adaptation_score": 0.0,
+                "prev_year_points_share": 0.3,
+                "prev_year_standing": 3,
+                "constructor_win_rate_5yr": 0.4,
+                "avg_driver_career_points_per_race": 2.0,
+                "season_points_share": 0.5 + (year - 2014) * 0.05,
+            })
+    df = pd.DataFrame(rows)
+    train = df[df["season_points_share"].notna()].reset_index(drop=True)
+    X = train[FEATURE_COLS]
+    y = train["season_points_share"]
+    meta = train[["year", "constructor"]]
+    return X, y, meta
+
+def test_loocv_returns_one_fold_per_season():
+    X, y, meta = _make_fake_data()
+    model = Pipeline([("imp", SimpleImputer()), ("reg", Ridge())])
+    results = leave_one_season_out_cv(model, X, y, meta, rule_change_weight=1.0)
+    assert len(results) == 4  # 4 seasons
+    for fold in results:
+        assert "season" in fold
+        assert "spearman" in fold
+        assert "mae" in fold
+
+def test_loocv_spearman_is_float():
+    X, y, meta = _make_fake_data()
+    model = Pipeline([("imp", SimpleImputer()), ("reg", Ridge())])
+    results = leave_one_season_out_cv(model, X, y, meta, rule_change_weight=1.0)
+    for fold in results:
+        assert isinstance(fold["spearman"], float)
+        assert isinstance(fold["mae"], float)
