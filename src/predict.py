@@ -106,4 +106,4 @@ def build_2026_features() -> pd.DataFrame:
 
     features = features.rename(columns={"constructor_canonical": "constructor"})
     features["season_points_share"] = np.nan
-    return features
+    return features[features["year"] == PREDICT_YEAR].reset_index(drop=True)
