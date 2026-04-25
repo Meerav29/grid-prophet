@@ -230,8 +230,6 @@ def main():
     cv_df.to_csv(args.cv_out, index=False)
     log.info("CV results saved → %s", args.cv_out)
 
-    _print_summary(winner_name, best_weight, weight_scores, cv_df, winner_pipeline)
-
     log.info("Retraining %s on all data ...", winner_name)
     retrain_and_save(
         winner_pipeline, X, y, meta,
@@ -240,6 +238,8 @@ def main():
         model_path=args.model_out,
     )
     log.info("Done. Model saved to %s", args.model_out)
+
+    _print_summary(winner_name, best_weight, weight_scores, cv_df, winner_pipeline)
 
 
 if __name__ == "__main__":
