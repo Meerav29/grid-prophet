@@ -13,6 +13,7 @@ from features import (
     RULE_CHANGE_YEARS,
     CONSTRUCTOR_LINEAGE,
     _canonical,
+    _apply_rebrand_dampening,
     _early_season_features,
     _rule_change_features,
     _momentum_features,
@@ -36,6 +37,11 @@ def collect_2026_early_rounds() -> pd.DataFrame:
     """Fetch rounds 1..EARLY_ROUNDS of PREDICT_YEAR from FastF1."""
     log.info("Collecting %d rounds 1-%d from FastF1 ...", PREDICT_YEAR, EARLY_ROUNDS)
     raw = collect_race_results(PREDICT_YEAR, PREDICT_YEAR)
+    if raw.empty:
+        raise RuntimeError(
+            "No %d race data returned from FastF1 for rounds 1-%d. "
+            "Check network connectivity or FastF1 availability." % (PREDICT_YEAR, EARLY_ROUNDS)
+        )
     return raw[raw["round"] <= EARLY_ROUNDS].copy()
 
 
@@ -103,6 +109,8 @@ def build_2026_features() -> pd.DataFrame:
     for df in [early, rc, momentum, driver_q]:
         features = features.merge(df, on=["year", "constructor_canonical"], how="left")
 
+    # Apply rebrand dampening to match training-time feature values
+    features = _apply_rebrand_dampening(features)
     features = features.rename(columns={"constructor_canonical": "constructor"})
     features["season_points_share"] = np.nan
     return features[features["year"] == PREDICT_YEAR].reset_index(drop=True)

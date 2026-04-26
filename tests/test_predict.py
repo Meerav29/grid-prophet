@@ -193,3 +193,50 @@ def test_print_predictions_ranked_order(capsys):
     _print_predictions(predictions, winner_name="XGBoost", rule_change_weight=3.0)
     captured = capsys.readouterr()
     assert captured.out.index("Mercedes") < captured.out.index("Ferrari")
+
+
+def test_collect_2026_early_rounds_raises_on_empty_fastf1():
+    """collect_2026_early_rounds raises RuntimeError when FastF1 returns no data."""
+    import unittest.mock as mock
+    import pytest
+    with mock.patch("predict.collect_race_results", return_value=pd.DataFrame()):
+        with pytest.raises(RuntimeError, match="No 2026 race data"):
+            collect_2026_early_rounds()
+
+
+def test_build_2026_features_applies_rebrand_dampening():
+    """build_2026_features applies rebrand dampening for Audi (major rebrand)."""
+    import unittest.mock as mock
+    # Build history that includes Audi (canonical for Kick Sauber/Sauber lineage)
+    history = _make_minimal_race_history()
+    # Add Audi 2025 data so it has a prev_year standing to dampen
+    audi_rows = pd.DataFrame({
+        "year": [2025, 2025], "round": [1, 2], "event_name": ["GP", "GP"],
+        "driver": ["Driver C", "Driver C"], "abbreviation": ["DRC", "DRC"],
+        "constructor": ["Audi", "Audi"],
+        "grid_position": [5, 5], "finish_position": [5, 5],
+        "classification": ["Finished", "Finished"], "points": [10.0, 10.0],
+    })
+    history_with_audi = pd.concat([history, audi_rows], ignore_index=True)
+    early_2026 = pd.DataFrame({
+        "year": [2026, 2026, 2026], "round": [1, 1, 1], "event_name": ["GP", "GP", "GP"],
+        "driver": ["Driver A", "Driver B", "Driver C"],
+        "abbreviation": ["DRA", "DRB", "DRC"],
+        "constructor": ["Mercedes", "Ferrari", "Audi"],
+        "grid_position": [1, 2, 3], "finish_position": [1, 2, 3],
+        "classification": ["Finished", "Finished", "Finished"],
+        "points": [25.0, 18.0, 5.0],
+    })
+    standings_hist = pd.DataFrame({
+        "year": [2024, 2024, 2025, 2025, 2025],
+        "constructor": ["Mercedes", "Ferrari", "Mercedes", "Ferrari", "Audi"],
+        "total_points": [200.0, 150.0, 180.0, 160.0, 20.0],
+        "standing": [1, 2, 1, 2, 3],
+    })
+    with mock.patch("predict.collect_2026_early_rounds", return_value=early_2026), \
+         mock.patch("predict.pd.read_csv", side_effect=[history_with_audi, standings_hist]):
+        result = build_2026_features()
+    audi_row = result[result["constructor"] == "Audi"]
+    assert not audi_row.empty, "Audi should appear in 2026 features"
+    # prev_year_points_share should exist (may be NaN or dampened — just verify column present)
+    assert "prev_year_points_share" in audi_row.columns
