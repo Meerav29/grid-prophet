@@ -54,6 +54,7 @@ def plot_cv_accuracy(
 
     spearman_by_season = cv_df.groupby("season")["spearman"].mean()
 
+    i = -1
     for i, season in enumerate(seasons):
         ax = axes[i]
         season_df = features_df[features_df["year"] == season]
