@@ -17,6 +17,7 @@ def _detect_latest_round(predict_year: int) -> int:
 
 def main():
     import argparse
+    # Imported inside main() to avoid heavy import-time side effects at module load
     import collect
     import features
     import train
@@ -38,8 +39,9 @@ def main():
     sub.add_parser("plots", help="Generate all visualisation charts")
 
     args, remaining = parser.parse_known_args()
+    prog_name = sys.argv[0]  # save before any mutation
     # Pass remaining args through to sub-module so their own argparse flags work
-    sys.argv = [sys.argv[0]] + remaining
+    sys.argv = [prog_name] + remaining
 
     if args.command == "collect":
         collect.main()
@@ -57,10 +59,14 @@ def main():
     elif args.command == "update":
         from predict import PREDICT_YEAR
         n = _detect_latest_round(PREDICT_YEAR)
-        sys.argv = [sys.argv[0], "--rounds", str(n)]
+        sys.argv = [prog_name, "--rounds", str(n)]
         predict.main()
     elif args.command == "plots":
-        import visualize
+        try:
+            import visualize
+        except ImportError:
+            print("Error: visualize module not yet available. Run all pipeline stages first.", file=sys.stderr)
+            sys.exit(1)
         visualize.plot_all()
 
 

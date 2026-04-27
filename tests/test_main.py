@@ -1,10 +1,7 @@
 # tests/test_main.py
 import sys
-import os
 import unittest.mock as mock
 import pytest
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 
 def test_collect_subcommand_calls_collect_main():
@@ -58,3 +55,27 @@ def test_unknown_subcommand_exits():
     with mock.patch("sys.argv", ["grid_prophet", "bogus"]):
         with pytest.raises(SystemExit):
             m.main()
+
+
+def test_update_subcommand_calls_predict_with_round():
+    import __main__ as m
+    captured_argv = []
+
+    def capture_and_call():
+        captured_argv[:] = sys.argv[:]
+
+    with mock.patch.object(m, "_detect_latest_round", return_value=5):
+        with mock.patch("predict.main", side_effect=capture_and_call) as mp:
+            with mock.patch("sys.argv", ["grid_prophet", "update"]):
+                m.main()
+    mp.assert_called_once()
+    assert captured_argv == ["grid_prophet", "--rounds", "5"]
+
+
+def test_plots_subcommand_calls_plot_all():
+    import __main__ as m
+    mock_visualize = mock.MagicMock()
+    with mock.patch.dict("sys.modules", {"visualize": mock_visualize}):
+        with mock.patch("sys.argv", ["grid_prophet", "plots"]):
+            m.main()
+    mock_visualize.plot_all.assert_called_once()

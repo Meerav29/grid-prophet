@@ -5,9 +5,8 @@ import importlib.util
 _src_path = os.path.join(os.path.dirname(__file__), "..", "src")
 sys.path.insert(0, _src_path)
 
-# Load src/__main__.py into sys.modules so `import __main__` in tests picks it up.
-# We load it under a temporary name first to avoid triggering the
-# `if __name__ == "__main__": main()` guard, then alias it into sys.modules.
+# Load src/__main__.py under a temp name to avoid triggering if __name__ == "__main__"
+# then alias into sys.modules["__main__"] so `import __main__ as m` in tests finds it.
 _spec = importlib.util.spec_from_file_location(
     "_grid_prophet_main", os.path.join(_src_path, "__main__.py")
 )
