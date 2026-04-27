@@ -48,7 +48,7 @@ def test_build_ensemble_returns_bundle_with_required_keys(tmp_path):
     base_bundle = _make_base_bundle()
     X, y, meta = _make_training_data()
     result = build_ensemble(base_bundle, X, y, meta)
-    for key in ("full_model", "rc_model", "alpha", "feature_cols", "winner_name", "rule_change_weight"):
+    for key in ("full_model", "rc_model", "alpha", "feature_cols", "winner_name", "rule_change_weight", "model"):
         assert key in result, f"Missing key: {key}"
 
 
