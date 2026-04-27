@@ -34,7 +34,7 @@ def main():
     sub.add_parser("features", help="Build feature matrix")
     sub.add_parser("train", help="Train model")
     sub.add_parser("predict", help="Generate 2026 predictions")
-    sub.add_parser("run", help="Run full pipeline: collect → features → train → predict")
+    sub.add_parser("run", help="Run full pipeline: collect > features > train > predict")
     sub.add_parser("update", help="Auto-detect latest round and re-predict")
     sub.add_parser("plots", help="Generate all visualisation charts")
 

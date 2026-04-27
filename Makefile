@@ -1,27 +1,28 @@
 PYTHON = python
+PYTHONPATH = src
 
 .PHONY: collect features train predict run update plots clean
 
 collect:
-	$(PYTHON) -m grid_prophet collect
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m src collect
 
 features:
-	$(PYTHON) -m grid_prophet features
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m src features
 
 train:
-	$(PYTHON) -m grid_prophet train
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m src train
 
 predict:
-	$(PYTHON) -m grid_prophet predict
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m src predict
 
 run:
-	$(PYTHON) -m grid_prophet run
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m src run
 
 update:
-	$(PYTHON) -m grid_prophet update
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m src update
 
 plots:
-	$(PYTHON) -m grid_prophet plots
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m src plots
 
 clean:
 	rm -f data/features.csv data/cv_results.csv data/predictions_2026*.csv
