@@ -204,6 +204,32 @@ def test_collect_2026_early_rounds_raises_on_empty_fastf1():
             collect_2026_early_rounds()
 
 
+def test_print_predictions_with_ci_shows_ci_column(capsys):
+    """_print_predictions shows 80% CI column when ci_half column present."""
+    predictions = pd.DataFrame({
+        "rank": [1, 2],
+        "constructor": ["Mercedes", "Ferrari"],
+        "predicted_points_share": [0.35, 0.28],
+        "ci_half": [0.04, 0.03],
+    })
+    _print_predictions(predictions, winner_name="Ridge", rule_change_weight=1.5)
+    captured = capsys.readouterr()
+    assert "80% CI" in captured.out
+    assert "±" in captured.out
+
+
+def test_print_predictions_without_ci_omits_ci_column(capsys):
+    """_print_predictions omits CI column when ci_half not present."""
+    predictions = pd.DataFrame({
+        "rank": [1, 2],
+        "constructor": ["Mercedes", "Ferrari"],
+        "predicted_points_share": [0.35, 0.28],
+    })
+    _print_predictions(predictions, winner_name="Ridge", rule_change_weight=1.5)
+    captured = capsys.readouterr()
+    assert "80% CI" not in captured.out
+
+
 def test_build_2026_features_applies_rebrand_dampening():
     """build_2026_features applies rebrand dampening for Audi (major rebrand)."""
     import unittest.mock as mock
