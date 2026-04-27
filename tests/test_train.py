@@ -8,7 +8,7 @@ from sklearn.linear_model import Ridge
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 import pickle
-from train import load_data, FEATURE_COLS, leave_one_season_out_cv, tune_rule_change_weight, compare_models, retrain_and_save
+from train import load_data, FEATURE_COLS, leave_one_season_out_cv, tune_rule_change_weight, compare_models, retrain_and_save, main
 
 def test_load_data_returns_train_split(tmp_path):
     # Minimal fake features.csv — 3 seasons, 2 constructors each
@@ -162,3 +162,43 @@ def test_retrain_and_save_creates_pkl(tmp_path):
     assert bundle["rule_change_weight"] == 1.5
     preds = bundle["model"].predict(X)
     assert len(preds) == len(X)
+
+
+def test_main_ensemble_flag_creates_ensemble_pkl(tmp_path):
+    """train.py --ensemble flag creates Grid_Prophet_ensemble.pkl."""
+    import unittest.mock as mock
+
+    rows = []
+    for year in [2014, 2015, 2022, 2023, 2024, 2025]:
+        for ctor in ["TeamA", "TeamB", "TeamC"]:
+            rows.append({
+                "year": year, "constructor": ctor,
+                "early_points_share": 0.3, "early_avg_finish": 5.0,
+                "is_rule_change_year": 1 if year in (2014, 2022) else 0,
+                "rule_change_adaptation_score": 0.0,
+                "prev_year_points_share": 0.3, "prev_year_standing": 3,
+                "constructor_win_rate_5yr": 0.4,
+                "avg_driver_career_points_per_race": 2.0,
+                "season_points_share": 0.5,
+            })
+    df = pd.DataFrame(rows)
+    features_csv = str(tmp_path / "features.csv")
+    df.to_csv(features_csv, index=False)
+    model_out = str(tmp_path / "model.pkl")
+    ensemble_out = str(tmp_path / "ensemble.pkl")
+
+    with mock.patch("sys.argv", [
+        "train", "--features", features_csv,
+        "--model-out", model_out,
+        "--cv-out", str(tmp_path / "cv.csv"),
+        "--ensemble",
+        "--ensemble-out", ensemble_out,
+    ]):
+        main()
+
+    assert os.path.exists(ensemble_out), "ensemble pkl should be created"
+    with open(ensemble_out, "rb") as f:
+        bundle = pickle.load(f)
+    assert "full_model" in bundle
+    assert "rc_model" in bundle
+    assert "alpha" in bundle

@@ -213,6 +213,14 @@ def main():
     parser.add_argument(
         "--cv-out", default=os.path.join(DATA_DIR, "cv_results.csv"),
     )
+    parser.add_argument(
+        "--ensemble", action="store_true",
+        help="After training base model, build and save ensemble bundle",
+    )
+    parser.add_argument(
+        "--ensemble-out",
+        default=os.path.join(MODELS_DIR, "Grid_Prophet_ensemble.pkl"),
+    )
     args = parser.parse_args()
 
     log.info("Loading data from %s ...", args.features)
@@ -240,6 +248,17 @@ def main():
     log.info("Done. Model saved to %s", args.model_out)
 
     _print_summary(winner_name, best_weight, weight_scores, cv_df, winner_pipeline)
+
+    if args.ensemble:
+        from ensemble import build_ensemble, save_ensemble
+        log.info("Building ensemble model ...")
+        ens_bundle = build_ensemble(
+            {"model": winner_pipeline, "feature_cols": FEATURE_COLS,
+             "winner_name": winner_name, "rule_change_weight": best_weight},
+            X, y, meta,
+        )
+        save_ensemble(ens_bundle, args.ensemble_out)
+        log.info("Ensemble saved -> %s", args.ensemble_out)
 
 
 if __name__ == "__main__":
