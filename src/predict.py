@@ -137,7 +137,7 @@ def predict_standings(bundle: dict, features_2026: pd.DataFrame) -> pd.DataFrame
     return result
 
 
-def _print_predictions(predictions: pd.DataFrame, winner_name: str, rule_change_weight: float):
+def _print_predictions(predictions: pd.DataFrame, winner_name: str, rule_change_weight: float, n_rounds: int = EARLY_ROUNDS):
     """Print a formatted 2026 constructor standings prediction table."""
     has_ci = "ci_half" in predictions.columns
 
@@ -145,7 +145,7 @@ def _print_predictions(predictions: pd.DataFrame, winner_name: str, rule_change_
     print("GRID PROPHET - 2026 CONSTRUCTOR CHAMPIONSHIP PREDICTION")
     print("=" * 68)
     print(f"Model: {winner_name}  |  Rule-change weight: {rule_change_weight:.1f}")
-    print(f"Based on rounds 1-{EARLY_ROUNDS} early-season data")
+    print(f"Based on rounds 1-{n_rounds} early-season data")
     print()
     if has_ci:
         print(f"  {'Rank':<6} {'Constructor':<24} {'Predicted Share':>15}  {'80% CI':>10}")
@@ -228,7 +228,7 @@ def main():
         predictions.to_csv(args.out, index=False)
     log.info("Predictions saved -> %s", out_path)
 
-    _print_predictions(predictions, bundle["winner_name"], bundle["rule_change_weight"])
+    _print_predictions(predictions, bundle["winner_name"], bundle["rule_change_weight"], n_rounds=args.rounds)
 
 
 if __name__ == "__main__":
