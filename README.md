@@ -4,6 +4,10 @@ ML model trained on ~10 years of F1 data (via FastF1) to predict the 2026 constr
 
 ## Quick Start
 
+Using [Claude Code](https://claude.com/claude-code)? Clone the repo and run `/pit-wall` — it installs dependencies and runs the full pipeline for you. Pass args to run a specific stage, e.g. `/pit-wall predict --ensemble` or `/pit-wall update`. See [.claude/skills/pit-wall/SKILL.md](.claude/skills/pit-wall/SKILL.md).
+
+Otherwise, run it manually:
+
 ```bash
 pip install -r requirements.txt
 
