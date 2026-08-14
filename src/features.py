@@ -1,5 +1,6 @@
 """Build per-constructor, per-season feature matrix from raw race results."""
 
+import argparse
 import logging
 import os
 
@@ -72,16 +73,30 @@ def _first_rebrand_season(canonical: str, results: pd.DataFrame) -> int | None:
     return int(years_as_current.min())
 
 
+def latest_completed_round(year: int) -> int:
+    """Return the latest completed round number for `year` from FastF1.
+    Falls back to 1 if no rounds of `year` have completed yet."""
+    import fastf1
+    import datetime
+
+    schedule = fastf1.get_event_schedule(year, include_testing=False)
+    today = datetime.date.today()
+    completed = schedule[schedule["EventDate"].dt.date < today]
+    if completed.empty:
+        return 1
+    return int(completed["RoundNumber"].max())
+
+
 # ---------------------------------------------------------------------------
 # Feature builders
 # ---------------------------------------------------------------------------
 
-def _early_season_features(results: pd.DataFrame) -> pd.DataFrame:
+def _early_season_features(results: pd.DataFrame, early_rounds: int = EARLY_ROUNDS) -> pd.DataFrame:
     """
-    early_points_share  — team's share of all points from rounds 1..EARLY_ROUNDS
+    early_points_share  — team's share of all points from rounds 1..early_rounds
     early_avg_finish    — average finishing position in those rounds
     """
-    early = results[results["round"] <= EARLY_ROUNDS].copy()
+    early = results[results["round"] <= early_rounds].copy()
 
     total_early_points = early.groupby("year")["points"].sum().rename("total_early_pts")
 
@@ -253,7 +268,9 @@ def _apply_rebrand_dampening(features: pd.DataFrame) -> pd.DataFrame:
 # Main
 # ---------------------------------------------------------------------------
 
-def build_features() -> pd.DataFrame:
+def build_features(early_rounds: int | None = None) -> pd.DataFrame:
+    effective_early_rounds = early_rounds if early_rounds is not None else EARLY_ROUNDS
+
     race_csv = os.path.join(DATA_DIR, "race_results.csv")
     standings_csv = os.path.join(DATA_DIR, "constructor_standings.csv")
 
@@ -286,8 +303,8 @@ def build_features() -> pd.DataFrame:
     standings = standings.merge(season_total, on="year")
     standings["points_share"] = standings["total_points"] / standings["season_total"]
 
-    log.info("Computing early-season features ...")
-    early = _early_season_features(results)
+    log.info("Computing early-season features (window: rounds 1-%d) ...", effective_early_rounds)
+    early = _early_season_features(results, early_rounds=effective_early_rounds)
 
     log.info("Computing rule-change features ...")
     rc = _rule_change_features(standings)
@@ -318,7 +335,14 @@ def build_features() -> pd.DataFrame:
 
 
 def main():
-    features = build_features()
+    parser = argparse.ArgumentParser(description="Build Grid Prophet feature matrix.")
+    parser.add_argument(
+        "--early-rounds", type=int, default=None, dest="early_rounds",
+        help="Override the early-season round window (default: EARLY_ROUNDS constant)",
+    )
+    args = parser.parse_args()
+
+    features = build_features(early_rounds=args.early_rounds)
     out_path = os.path.join(DATA_DIR, "features.csv")
     features.to_csv(out_path, index=False)
     log.info("Saved features → %s", out_path)
