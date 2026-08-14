@@ -218,6 +218,7 @@ def main():
         log.info("Computing bootstrap confidence intervals (N=500) ...")
         features_csv = os.path.join(DATA_DIR, "features.csv")
         X_train, y_train, _ = load_data(features_csv)
+        X_train = X_train[bundle["feature_cols"]]
         ci = bootstrap_confidence_intervals(bundle, X_train, y_train, features_2026)
         predictions = predictions.merge(ci, on="constructor", how="left")
 
