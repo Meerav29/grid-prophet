@@ -9,7 +9,7 @@ from sklearn.pipeline import Pipeline
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from predict import collect_2026_early_rounds, build_2026_features, load_model_bundle, predict_standings, _print_predictions
+from predict import collect_2026_early_rounds, build_2026_features, load_model_bundle, predict_standings, _print_predictions, main
 from train import FEATURE_COLS
 
 
@@ -266,3 +266,57 @@ def test_build_2026_features_applies_rebrand_dampening():
     assert not audi_row.empty, "Audi should appear in 2026 features"
     # prev_year_points_share should exist (may be NaN or dampened — just verify column present)
     assert "prev_year_points_share" in audi_row.columns
+
+
+def test_main_computes_ci_when_bundle_uses_subset_of_feature_cols(tmp_path):
+    """A model bundle trained on a LassoCV-selected subset of FEATURE_COLS
+    (fewer columns than the full features.csv) must not crash CI computation
+    — X_train has to be filtered down to bundle['feature_cols'] before use."""
+    import unittest.mock as mock
+
+    selected_cols = FEATURE_COLS[:3]
+    pipeline = Pipeline([("imp", SimpleImputer()), ("reg", Ridge())])
+    X_fit = pd.DataFrame({col: [0.1, 0.2, 0.3, 0.4] for col in selected_cols})
+    y_fit = pd.Series([0.2, 0.3, 0.4, 0.5])
+    pipeline.fit(X_fit, y_fit)
+    bundle = {
+        "model": pipeline,
+        "feature_cols": selected_cols,
+        "winner_name": "Ridge",
+        "rule_change_weight": 1.5,
+    }
+    model_path = tmp_path / "model.pkl"
+    with open(model_path, "wb") as f:
+        pickle.dump(bundle, f)
+
+    features_csv = tmp_path / "features.csv"
+    train_rows = pd.DataFrame({
+        "year": [2014, 2015, 2016, 2017],
+        "constructor": ["TeamA", "TeamA", "TeamA", "TeamA"],
+        **{col: [0.1, 0.2, 0.3, 0.4] for col in FEATURE_COLS},
+        "season_points_share": [0.2, 0.3, 0.4, 0.5],
+    })
+    train_rows.to_csv(features_csv, index=False)
+
+    features_2026 = pd.DataFrame({
+        "year": [2026, 2026],
+        "constructor": ["Mercedes", "Ferrari"],
+        **{col: [0.5, 0.3] for col in FEATURE_COLS},
+        "season_points_share": [float("nan"), float("nan")],
+    })
+
+    out_path = tmp_path / "predictions_2026.csv"
+
+    with mock.patch("fastf1.Cache.enable_cache"), \
+         mock.patch("predict.build_2026_features", return_value=features_2026), \
+         mock.patch("sys.argv", [
+            "predict",
+            "--model", str(model_path),
+            "--out", str(out_path),
+         ]), \
+         mock.patch("predict.DATA_DIR", str(tmp_path)):
+        main()
+
+    assert out_path.exists()
+    result = pd.read_csv(out_path)
+    assert "ci_half" in result.columns

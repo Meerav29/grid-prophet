@@ -1,6 +1,6 @@
 # Grid Prophet
 
-ML model trained on ~10 years of F1 data (via FastF1) to predict the 2026 constructor championship standings. Emphasizes early-season performance signals from the first 2 races and a rule-change-year adaptation variable to capture how teams historically perform during major regulation shifts like 2026.
+ML model trained on ~10 years of F1 data (via FastF1) to predict the 2026 constructor championship standings. Emphasizes early-season performance signals — auto-widened to cover however much of the season has actually run — and a rule-change-year adaptation variable to capture how teams historically perform during major regulation shifts like 2026.
 
 ## Quick Start
 
@@ -26,21 +26,21 @@ make run
 make plots
 ```
 
-## 2026 Predictions (after rounds 1–2)
+## 2026 Predictions (after rounds 1–11)
 
-| Rank | Constructor | Predicted Share |
-|------|-------------|----------------|
-| 1 | Mercedes | 30.4% |
-| 2 | Ferrari | 22.5% |
-| 3 | McLaren | 18.2% |
-| 4 | Red Bull Racing | 7.0% |
-| 5 | Williams | 6.1% |
-| 6 | Haas F1 Team | 5.9% |
-| 7 | Alpine | 4.2% |
-| 8 | Racing Bulls | 3.7% |
-| 9 | Audi | 2.7% |
-| 10 | Aston Martin | 1.0% |
-| 11 | Cadillac | -0.4% |
+| Rank | Constructor | Predicted Share | 80% CI |
+|------|-------------|----------------|--------|
+| 1 | Mercedes | 26.2% | ± 2.3% |
+| 2 | Ferrari | 23.6% | ± 1.2% |
+| 3 | McLaren | 15.0% | ± 1.2% |
+| 4 | Red Bull Racing | 15.0% | ± 1.1% |
+| 5 | Alpine | 4.9% | ± 0.5% |
+| 6 | Racing Bulls | 4.7% | ± 0.5% |
+| 7 | Haas F1 Team | 1.7% | ± 0.3% |
+| 8 | Audi | 1.5% | ± 0.3% |
+| 9 | Williams | 1.4% | ± 0.3% |
+| 10 | Cadillac | 0.2% | ± 0.2% |
+| 11 | Aston Martin | 0.1% | ± 0.1% |
 
 ## CLI Reference
 
@@ -62,9 +62,12 @@ PYTHONPATH=src python -m src <command> [flags]
 
 ```bash
 # predict.py
---rounds N        # Use N rounds of early-season data (default: 2)
+--rounds N        # Ad-hoc override: use N rounds of early-season data (default: EARLY_ROUNDS=2)
 --ensemble        # Use the ensemble model instead of base model
 --no-ci           # Skip bootstrap confidence intervals (faster)
+
+# features.py
+--early-rounds N  # Override the early-season round window (default: EARLY_ROUNDS=2)
 
 # train.py
 --ensemble        # Build ensemble bundle after training base model
@@ -79,11 +82,11 @@ make update
 PYTHONPATH=src python -m src update
 ```
 
-Auto-detects the latest completed round from FastF1 and re-predicts. Saves a round-stamped snapshot (`data/predictions_2026_r{N}.csv`) alongside the current `predictions_2026.csv`.
+Auto-detects the latest completed 2026 round from FastF1, rebuilds `features.csv` using that many rounds as the early-season window for **both** historical training seasons and the live 2026 row (so training and prediction never see a mismatched window), retrains the model, and re-predicts. Saves a round-stamped snapshot (`data/predictions_2026_r{N}.csv`) alongside the current `predictions_2026.csv`. `run` does the same after a fresh `collect`.
 
 ## How It Works
 
-The model uses per-constructor, per-season features — including early-season dominance signals, historical rule-change adaptation scores, prior-year momentum, and driver quality proxies — to predict each team's share of total championship points. Rule-change years are weighted more heavily during training to better capture the dynamics of regulation shifts.
+The model uses per-constructor, per-season features — including early-season dominance signals (points share, average finish, DNF rate, grid-to-finish delta, teammate head-to-head, in-window development trend), historical rule-change adaptation scores, prior-year momentum, and driver quality proxies — to predict each team's share of total championship points. Rule-change years are weighted more heavily during training to better capture the dynamics of regulation shifts. Before comparing Ridge and XGBoost, `train.py` runs LassoCV feature selection to drop features that don't earn their keep against the ~120-row dataset.
 
 An optional ensemble model blends the full-data model with a rule-change-years-only sub-model (trained on 2014, 2015, 2022, 2023). The blend weight α is tuned via leave-one-season-out CV on rule-change seasons.
 

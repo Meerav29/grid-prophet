@@ -8,7 +8,7 @@ from sklearn.linear_model import Ridge
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 import pickle
-from train import load_data, FEATURE_COLS, leave_one_season_out_cv, tune_rule_change_weight, compare_models, retrain_and_save, main
+from train import load_data, FEATURE_COLS, leave_one_season_out_cv, tune_rule_change_weight, compare_models, retrain_and_save, select_features, main
 
 def test_load_data_returns_train_split(tmp_path):
     # Minimal fake features.csv — 3 seasons, 2 constructors each
@@ -18,6 +18,8 @@ def test_load_data_returns_train_split(tmp_path):
             rows.append({
                 "year": year, "constructor": ctor,
                 "early_points_share": 0.5, "early_avg_finish": 5.0,
+                "constructor_dnf_rate": 0.1, "avg_grid_to_finish_delta": 0.0,
+                "teammate_head_to_head": 0.5, "development_trend": 0.0,
                 "is_rule_change_year": 0, "rule_change_adaptation_score": 0.0,
                 "prev_year_points_share": 0.3, "prev_year_standing": 3,
                 "constructor_win_rate_5yr": 0.4,
@@ -28,6 +30,8 @@ def test_load_data_returns_train_split(tmp_path):
     rows.append({
         "year": 2026, "constructor": "TeamA",
         "early_points_share": 0.4, "early_avg_finish": 4.0,
+        "constructor_dnf_rate": 0.1, "avg_grid_to_finish_delta": 0.0,
+        "teammate_head_to_head": 0.5, "development_trend": 0.0,
         "is_rule_change_year": 1, "rule_change_adaptation_score": -0.5,
         "prev_year_points_share": 0.3, "prev_year_standing": 2,
         "constructor_win_rate_5yr": 0.6,
@@ -55,6 +59,8 @@ def _make_fake_data():
                 "year": year, "constructor": ctor,
                 "early_points_share": 0.5 + (year - 2014) * 0.05,
                 "early_avg_finish": 5.0,
+                "constructor_dnf_rate": 0.1, "avg_grid_to_finish_delta": 0.0,
+                "teammate_head_to_head": 0.5, "development_trend": 0.0,
                 "is_rule_change_year": int(year == 2014),
                 "rule_change_adaptation_score": 0.0,
                 "prev_year_points_share": 0.3,
@@ -164,6 +170,51 @@ def test_retrain_and_save_creates_pkl(tmp_path):
     assert len(preds) == len(X)
 
 
+def test_select_features_keeps_signal_drops_pure_noise():
+    rng = np.random.RandomState(0)
+    n = 100
+    signal = np.linspace(0, 1, n)
+    noise = rng.normal(size=n)
+    X = pd.DataFrame({
+        "early_points_share": signal,
+        "pure_noise": noise,
+        "is_rule_change_year": np.zeros(n),
+    })
+    y = pd.Series(signal * 2 + 0.01)
+
+    selected = select_features(X, y)
+
+    assert "early_points_share" in selected
+    assert "pure_noise" not in selected
+
+
+def test_select_features_always_keeps_is_rule_change_year():
+    n = 30
+    X = pd.DataFrame({
+        "early_points_share": np.linspace(0, 1, n),
+        "is_rule_change_year": np.zeros(n),
+    })
+    y = pd.Series(np.linspace(0, 1, n) * 2)
+
+    selected = select_features(X, y)
+
+    assert "is_rule_change_year" in selected
+
+
+def test_select_features_preserves_original_column_order():
+    n = 30
+    X = pd.DataFrame({
+        "early_points_share": np.linspace(0, 1, n),
+        "avg_grid_to_finish_delta": np.linspace(1, 0, n),
+        "is_rule_change_year": np.zeros(n),
+    })
+    y = pd.Series(np.linspace(0, 1, n))
+
+    selected = select_features(X, y)
+
+    assert selected == [c for c in X.columns if c in selected]
+
+
 def test_main_ensemble_flag_creates_ensemble_pkl(tmp_path):
     """train.py --ensemble flag creates Grid_Prophet_ensemble.pkl."""
     import unittest.mock as mock
@@ -174,6 +225,8 @@ def test_main_ensemble_flag_creates_ensemble_pkl(tmp_path):
             rows.append({
                 "year": year, "constructor": ctor,
                 "early_points_share": 0.3, "early_avg_finish": 5.0,
+                "constructor_dnf_rate": 0.1, "avg_grid_to_finish_delta": 0.0,
+                "teammate_head_to_head": 0.5, "development_trend": 0.0,
                 "is_rule_change_year": 1 if year in (2014, 2022) else 0,
                 "rule_change_adaptation_score": 0.0,
                 "prev_year_points_share": 0.3, "prev_year_standing": 3,
