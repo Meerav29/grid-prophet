@@ -10,9 +10,10 @@ import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
 from sklearn.base import clone
-from sklearn.linear_model import Ridge
+from sklearn.linear_model import Ridge, LassoCV
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 
 logging.basicConfig(
@@ -42,6 +43,8 @@ FEATURE_COLS = [
 
 RULE_CHANGE_WEIGHT_CANDIDATES = [1.0, 1.5, 2.0, 2.5, 3.0]
 
+ALWAYS_KEEP_FEATURES = ["is_rule_change_year"]
+
 
 def load_data(csv_path: str):
     """Load features CSV; returns (X, y, meta) for rows with a known target."""
@@ -51,6 +54,36 @@ def load_data(csv_path: str):
     y = train["season_points_share"].copy()
     meta = train[["year", "constructor"]].copy()
     return X, y, meta
+
+
+def select_features(X: pd.DataFrame, y: pd.Series) -> list[str]:
+    """Run LassoCV on standardized, imputed features and return the columns
+    with a nonzero coefficient, in their original order. Always includes
+    ALWAYS_KEEP_FEATURES regardless of the Lasso outcome (leave_one_season_out_cv
+    and retrain_and_save depend on is_rule_change_year for sample weighting).
+    Falls back to the full column set if Lasso zeroes out everything else."""
+    imputer = SimpleImputer()
+    X_imp = imputer.fit_transform(X)
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X_imp)
+
+    n_splits = max(2, min(5, len(X)))
+    lasso = LassoCV(cv=n_splits, random_state=42, max_iter=5000).fit(X_scaled, y)
+
+    selected = {col for col, coef in zip(X.columns, lasso.coef_) if coef != 0}
+    for col in ALWAYS_KEEP_FEATURES:
+        if col in X.columns:
+            selected.add(col)
+
+    meaningful = selected - set(ALWAYS_KEEP_FEATURES)
+    if not meaningful:
+        log.warning("LassoCV dropped nearly all features; keeping full feature set.")
+        return list(X.columns)
+
+    dropped = [c for c in X.columns if c not in selected]
+    if dropped:
+        log.info("Feature selection dropped: %s", dropped)
+    return [c for c in X.columns if c in selected]
 
 
 def leave_one_season_out_cv(model, X: pd.DataFrame, y: pd.Series,
@@ -150,8 +183,11 @@ def compare_models(X: pd.DataFrame, y: pd.Series, meta: pd.DataFrame,
 
 
 def retrain_and_save(pipeline, X: pd.DataFrame, y: pd.Series, meta: pd.DataFrame,
-                     winner_name: str, rule_change_weight: float, model_path: str):
+                     winner_name: str, rule_change_weight: float, model_path: str,
+                     feature_cols: list[str] | None = None):
     """Retrain pipeline on all data with best weight and save a bundle to model_path."""
+    feature_cols = list(feature_cols) if feature_cols is not None else FEATURE_COLS
+
     rc_col = X["is_rule_change_year"]
     sample_weights = np.where(rc_col == 1, rule_change_weight, 1.0)
 
@@ -163,7 +199,7 @@ def retrain_and_save(pipeline, X: pd.DataFrame, y: pd.Series, meta: pd.DataFrame
 
     bundle = {
         "model": pipeline,
-        "feature_cols": FEATURE_COLS,
+        "feature_cols": feature_cols,
         "winner_name": winner_name,
         "rule_change_weight": rule_change_weight,
     }
@@ -174,8 +210,10 @@ def retrain_and_save(pipeline, X: pd.DataFrame, y: pd.Series, meta: pd.DataFrame
 
 
 def _print_summary(winner_name: str, best_weight: float, weight_scores: dict,
-                   cv_df: pd.DataFrame, pipeline):
+                   cv_df: pd.DataFrame, pipeline, feature_cols: list[str] | None = None):
     """Print training summary: weight tuning results, model comparison, feature importances."""
+    feature_cols = feature_cols if feature_cols is not None else FEATURE_COLS
+
     print("\n" + "=" * 60)
     print("GRID PROPHET - TRAINING SUMMARY")
     print("=" * 60)
@@ -196,11 +234,11 @@ def _print_summary(winner_name: str, best_weight: float, weight_scores: dict,
     last_estimator = pipeline.steps[-1][1]
     if hasattr(last_estimator, "feature_importances_"):
         print("\n-- Feature importances (XGBoost) --")
-        for col, imp in sorted(zip(FEATURE_COLS, last_estimator.feature_importances_), key=lambda x: -x[1]):
+        for col, imp in sorted(zip(feature_cols, last_estimator.feature_importances_), key=lambda x: -x[1]):
             print(f"  {col:<42} {imp:.4f}")
     elif hasattr(last_estimator, "coef_"):
         print("\n-- Ridge coefficients --")
-        for col, coef in sorted(zip(FEATURE_COLS, last_estimator.coef_), key=lambda x: -abs(x[1])):
+        for col, coef in sorted(zip(feature_cols, last_estimator.coef_), key=lambda x: -abs(x[1])):
             print(f"  {col:<42} {coef:+.4f}")
 
     print("=" * 60 + "\n")
@@ -231,6 +269,11 @@ def main():
     X, y, meta = load_data(args.features)
     log.info("Training set: %d rows, %d seasons", len(X), meta["year"].nunique())
 
+    log.info("Selecting features via LassoCV ...")
+    selected_cols = select_features(X, y)
+    log.info("Selected %d/%d features: %s", len(selected_cols), len(FEATURE_COLS), selected_cols)
+    X = X[selected_cols]
+
     tune_pipeline = Pipeline([("imp", SimpleImputer()), ("reg", Ridge(alpha=1.0))])
     log.info("Tuning rule-change sample weight ...")
     best_weight, weight_scores = tune_rule_change_weight(tune_pipeline, X, y, meta)
@@ -248,16 +291,17 @@ def main():
         winner_name=winner_name,
         rule_change_weight=best_weight,
         model_path=args.model_out,
+        feature_cols=selected_cols,
     )
     log.info("Done. Model saved to %s", args.model_out)
 
-    _print_summary(winner_name, best_weight, weight_scores, cv_df, winner_pipeline)
+    _print_summary(winner_name, best_weight, weight_scores, cv_df, winner_pipeline, feature_cols=selected_cols)
 
     if args.ensemble:
         from ensemble import build_ensemble, save_ensemble
         log.info("Building ensemble model ...")
         ens_bundle = build_ensemble(
-            {"model": winner_pipeline, "feature_cols": FEATURE_COLS,
+            {"model": winner_pipeline, "feature_cols": selected_cols,
              "winner_name": winner_name, "rule_change_weight": best_weight},
             X, y, meta,
         )
