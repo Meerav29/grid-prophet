@@ -18,6 +18,8 @@ def test_load_data_returns_train_split(tmp_path):
             rows.append({
                 "year": year, "constructor": ctor,
                 "early_points_share": 0.5, "early_avg_finish": 5.0,
+                "constructor_dnf_rate": 0.1, "avg_grid_to_finish_delta": 0.0,
+                "teammate_head_to_head": 0.5, "development_trend": 0.0,
                 "is_rule_change_year": 0, "rule_change_adaptation_score": 0.0,
                 "prev_year_points_share": 0.3, "prev_year_standing": 3,
                 "constructor_win_rate_5yr": 0.4,
@@ -28,6 +30,8 @@ def test_load_data_returns_train_split(tmp_path):
     rows.append({
         "year": 2026, "constructor": "TeamA",
         "early_points_share": 0.4, "early_avg_finish": 4.0,
+        "constructor_dnf_rate": 0.1, "avg_grid_to_finish_delta": 0.0,
+        "teammate_head_to_head": 0.5, "development_trend": 0.0,
         "is_rule_change_year": 1, "rule_change_adaptation_score": -0.5,
         "prev_year_points_share": 0.3, "prev_year_standing": 2,
         "constructor_win_rate_5yr": 0.6,
@@ -55,6 +59,8 @@ def _make_fake_data():
                 "year": year, "constructor": ctor,
                 "early_points_share": 0.5 + (year - 2014) * 0.05,
                 "early_avg_finish": 5.0,
+                "constructor_dnf_rate": 0.1, "avg_grid_to_finish_delta": 0.0,
+                "teammate_head_to_head": 0.5, "development_trend": 0.0,
                 "is_rule_change_year": int(year == 2014),
                 "rule_change_adaptation_score": 0.0,
                 "prev_year_points_share": 0.3,
@@ -174,6 +180,8 @@ def test_main_ensemble_flag_creates_ensemble_pkl(tmp_path):
             rows.append({
                 "year": year, "constructor": ctor,
                 "early_points_share": 0.3, "early_avg_finish": 5.0,
+                "constructor_dnf_rate": 0.1, "avg_grid_to_finish_delta": 0.0,
+                "teammate_head_to_head": 0.5, "development_trend": 0.0,
                 "is_rule_change_year": 1 if year in (2014, 2022) else 0,
                 "rule_change_adaptation_score": 0.0,
                 "prev_year_points_share": 0.3, "prev_year_standing": 3,

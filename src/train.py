@@ -28,6 +28,10 @@ MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 FEATURE_COLS = [
     "early_points_share",
     "early_avg_finish",
+    "constructor_dnf_rate",
+    "avg_grid_to_finish_delta",
+    "teammate_head_to_head",
+    "development_trend",
     "is_rule_change_year",
     "rule_change_adaptation_score",
     "prev_year_points_share",
