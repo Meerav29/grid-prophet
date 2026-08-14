@@ -39,12 +39,14 @@ def test_predict_subcommand_calls_predict_main():
 def test_run_subcommand_calls_all_four():
     import __main__ as m
     with mock.patch("collect.main") as mc, \
+         mock.patch("features.latest_completed_round", return_value=5) as mlcr, \
          mock.patch("features.main") as mf, \
          mock.patch("train.main") as mt, \
          mock.patch("predict.main") as mp:
         with mock.patch("sys.argv", ["grid_prophet", "run"]):
             m.main()
     mc.assert_called_once()
+    mlcr.assert_called_once_with(2026)
     mf.assert_called_once()
     mt.assert_called_once()
     mp.assert_called_once()
@@ -57,19 +59,29 @@ def test_unknown_subcommand_exits():
             m.main()
 
 
-def test_update_subcommand_calls_predict_with_round():
+def test_update_subcommand_rebuilds_features_retrains_and_predicts():
     import __main__ as m
-    captured_argv = []
+    captured = {}
 
-    def capture_and_call():
-        captured_argv[:] = sys.argv[:]
+    def capture_features():
+        captured["features_argv"] = sys.argv[:]
 
-    with mock.patch.object(m, "_detect_latest_round", return_value=5):
-        with mock.patch("predict.main", side_effect=capture_and_call) as mp:
-            with mock.patch("sys.argv", ["grid_prophet", "update"]):
-                m.main()
+    def capture_predict():
+        captured["predict_argv"] = sys.argv[:]
+
+    with mock.patch("features.latest_completed_round", return_value=5) as mlcr, \
+         mock.patch("features.main", side_effect=capture_features) as mf, \
+         mock.patch("train.main") as mt, \
+         mock.patch("predict.main", side_effect=capture_predict) as mp:
+        with mock.patch("sys.argv", ["grid_prophet", "update"]):
+            m.main()
+
+    mlcr.assert_called_once_with(2026)
+    mf.assert_called_once()
+    mt.assert_called_once()
     mp.assert_called_once()
-    assert captured_argv == ["grid_prophet", "--rounds", "5"]
+    assert captured["features_argv"] == ["grid_prophet", "--early-rounds", "5"]
+    assert captured["predict_argv"] == ["grid_prophet", "--rounds", "5"]
 
 
 def test_plots_subcommand_calls_plot_all():

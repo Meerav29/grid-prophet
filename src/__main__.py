@@ -3,18 +3,6 @@
 import sys
 
 
-def _detect_latest_round(predict_year: int) -> int:
-    """Return the latest completed round number for predict_year from FastF1."""
-    import fastf1
-    import datetime
-    schedule = fastf1.get_event_schedule(predict_year, include_testing=False)
-    today = datetime.date.today()
-    completed = schedule[schedule["EventDate"].dt.date < today]
-    if completed.empty:
-        return 1
-    return int(completed["RoundNumber"].max())
-
-
 def main():
     import argparse
     # Imported inside main() to avoid heavy import-time side effects at module load
@@ -35,7 +23,7 @@ def main():
     sub.add_parser("train", help="Train model")
     sub.add_parser("predict", help="Generate 2026 predictions")
     sub.add_parser("run", help="Run full pipeline: collect > features > train > predict")
-    sub.add_parser("update", help="Auto-detect latest round and re-predict")
+    sub.add_parser("update", help="Auto-detect latest round, rebuild features, retrain, and re-predict")
     sub.add_parser("plots", help="Generate all visualisation charts")
 
     args, remaining = parser.parse_known_args()
@@ -52,13 +40,22 @@ def main():
     elif args.command == "predict":
         predict.main()
     elif args.command == "run":
+        from predict import PREDICT_YEAR
         collect.main()
+        n = features.latest_completed_round(PREDICT_YEAR)
+        sys.argv = [prog_name, "--early-rounds", str(n)]
         features.main()
+        sys.argv = [prog_name]
         train.main()
+        sys.argv = [prog_name, "--rounds", str(n)]
         predict.main()
     elif args.command == "update":
         from predict import PREDICT_YEAR
-        n = _detect_latest_round(PREDICT_YEAR)
+        n = features.latest_completed_round(PREDICT_YEAR)
+        sys.argv = [prog_name, "--early-rounds", str(n)]
+        features.main()
+        sys.argv = [prog_name]
+        train.main()
         sys.argv = [prog_name, "--rounds", str(n)]
         predict.main()
     elif args.command == "plots":
