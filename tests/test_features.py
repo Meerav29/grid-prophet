@@ -91,6 +91,48 @@ def test_latest_completed_round_returns_max_completed_round():
     assert result == 3
 
 
+def test_new_features_present_and_correct():
+    result = _early_season_features(_make_results(), early_rounds=2)
+    teamA = result[result["constructor_canonical"] == "TeamA"].iloc[0]
+    teamB = result[result["constructor_canonical"] == "TeamB"].iloc[0]
+
+    # TeamA: round1 Alice finished, Bob DNF; round2 both finished -> 1 DNF / 4 entries
+    assert teamA["constructor_dnf_rate"] == pytest.approx(0.25)
+    # TeamB: no DNFs in the window
+    assert teamB["constructor_dnf_rate"] == pytest.approx(0.0)
+
+    # TeamA classified entries: round1 Alice(grid2,fin1,+1); round2 Alice(grid1,fin2,-1), Bob(grid3,fin1,+2)
+    assert teamA["avg_grid_to_finish_delta"] == pytest.approx((1 + (-1) + 2) / 3)
+    # TeamB: round1 Carl(-1), Dana(0); round2 Carl(-2), Dana(1)
+    assert teamB["avg_grid_to_finish_delta"] == pytest.approx((-1 + 0 - 2 + 1) / 4)
+
+    # TeamA: round1 only Alice classified (Bob DNF) -> race excluded; round2 both classified,
+    # alphabetically-first driver "Alice" finishes 2nd vs Bob's 1st -> loses that race -> 0/1
+    assert teamA["teammate_head_to_head"] == pytest.approx(0.0)
+    # TeamB: round1 "Carl" (alpha-first) finishes 2nd = best -> win; round2 Carl finishes 4th,
+    # Dana 3rd = best -> Carl loses -> 1/2
+    assert teamB["teammate_head_to_head"] == pytest.approx(0.5)
+
+    # TeamA: round1 mean finish = mean(1, NaN) = 1.0; round2 mean finish = mean(2,1) = 1.5
+    # slope = (1.5 - 1.0) / (2 - 1) = 0.5
+    assert teamA["development_trend"] == pytest.approx(0.5)
+    # TeamB: round1 mean = 2.5, round2 mean = 3.5 -> slope = 1.0
+    assert teamB["development_trend"] == pytest.approx(1.0)
+
+
+def test_development_trend_is_zero_with_single_round_window():
+    result = _early_season_features(_make_results(), early_rounds=1)
+    teamA = result[result["constructor_canonical"] == "TeamA"].iloc[0]
+    assert teamA["development_trend"] == pytest.approx(0.0)
+
+
+def test_teammate_head_to_head_excludes_races_with_lt_2_classified_drivers():
+    # TeamA round1 has only 1 classified driver (Bob DNF) -> excluded from denominator
+    result = _early_season_features(_make_results(), early_rounds=1)
+    teamA = result[result["constructor_canonical"] == "TeamA"].iloc[0]
+    assert np.isnan(teamA["teammate_head_to_head"])
+
+
 def test_latest_completed_round_returns_1_when_none_completed():
     schedule = pd.DataFrame({
         "RoundNumber": [1, 2],
