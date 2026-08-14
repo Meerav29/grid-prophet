@@ -96,7 +96,7 @@ def build_2026_features(n_rounds: int = EARLY_ROUNDS) -> pd.DataFrame:
     standings = pd.concat([standings, stub_rows], ignore_index=True)
 
     log.info("Computing features for %d ...", PREDICT_YEAR)
-    early = _early_season_features(results)
+    early = _early_season_features(results, early_rounds=n_rounds)
     rc = _rule_change_features(standings)
     momentum = _momentum_features(standings)
     driver_q = _driver_quality_feature(results)
