@@ -108,9 +108,11 @@ def main():
     parser.add_argument("--start-year", type=int, default=2014)
     parser.add_argument("--end-year", type=int, default=2025)
     parser.add_argument(
-        "--resume",
-        action="store_true",
-        help="Skip years already present in race_results.csv and append new ones.",
+        "--no-resume",
+        action="store_false",
+        dest="resume",
+        default=True,
+        help="Re-fetch all years in the requested range, even ones already present in race_results.csv.",
     )
     args = parser.parse_args()
 
