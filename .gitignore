@@ -1,12 +1,18 @@
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
-data/*.csv
-data/*.parquet
 models/*.pkl
 models/*.json
 .venv/
 *.egg-info/
 dist/
 build/
-data/
+
+# Ignore everything under data/ except the small hand-maintained v2 reference
+# tables (circuits.csv, dnf_status_map.csv) -- generated/collected data
+# (race_results.csv, driver_rounds.csv, features.csv, predictions*.csv,
+# fastf1_cache/, etc.) stays local and reproducible via `collect`/`collect_v2`.
+data/*
+!data/.gitkeep
+!data/circuits.csv
+!data/dnf_status_map.csv
