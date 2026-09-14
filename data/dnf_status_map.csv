@@ -1,0 +1,56 @@
+status,category,needs_review,notes
+Finished,classified,False,
+Lapped,classified,False,classified but not on lead lap
++1 Lap,classified,False,
++2 Laps,classified,False,
++3 Laps,classified,False,
++4 Laps,classified,False,
++5 Laps,classified,False,
++6 Laps,classified,False,
+Accident,incident,False,
+Collision,incident,False,
+Collision damage,incident,False,
+Damage,incident,False,could be contact or debris; treat as incident
+Spun off,incident,False,
+Engine,mechanical,False,
+Power Unit,mechanical,False,
+Gearbox,mechanical,False,
+Brakes,mechanical,False,
+Electrical,mechanical,False,
+Electronics,mechanical,False,
+Hydraulics,mechanical,False,
+Cooling system,mechanical,False,
+Water pump,mechanical,False,
+Overheating,mechanical,False,
+Fuel leak,mechanical,False,
+Fuel pressure,mechanical,False,
+Fuel system,mechanical,False,
+Out of fuel,mechanical,False,strategy/mechanical boundary but not incident-caused
+Steering,mechanical,False,
+Suspension,mechanical,True,often contact-induced -- verify against race narrative for borderline seasons
+Transmission,mechanical,False,
+Clutch,mechanical,False,
+Turbo,mechanical,False,
+Exhaust,mechanical,False,
+Oil leak,mechanical,False,
+Vibrations,mechanical,True,ambiguous -- can stem from earlier contact
+Wheel,mechanical,True,ambiguous -- wheel failures are sometimes contact-induced; flagged for manual review
+Puncture,incident,True,usually caused by contact or debris; flagged for manual review
+Power loss,mechanical,False,
+Water pressure,mechanical,False,
+Water leak,mechanical,False,
+Differential,mechanical,False,
+Fuel pump,mechanical,False,
+Battery,mechanical,False,
+Mechanical,mechanical,True,generic catch-all with no specific system named
+Undertray,incident,True,usually porpoising/ground-contact or debris damage; flagged for manual review
+Tyre,incident,True,ambiguous -- puncture/wear failure vs contact-induced; flagged for manual review
+Front wing,incident,True,front wing damage is usually contact-induced; flagged for manual review
+Rear wing,incident,True,rear wing damage is usually contact-induced; flagged for manual review
+Debris,incident,False,
+Illness,other,False,driver withdrawal -- not a car failure
+Disqualified,other,False,
+Withdrew,other,False,
+Did not start,other,False,
+Did not qualify,other,False,
+Retired,other,True,"generic catch-all with no cause detail -- flagged for manual review, resolve against race reports where it materially affects a season's hazard estimate"

@@ -1,0 +1,40 @@
+event_name,location,country,circuit_type,overtaking_difficulty,lap_length_km,needs_review
+Australian Grand Prix,Melbourne,Australia,mixed,3.0,5.278,False
+Bahrain Grand Prix,Sakhir,Bahrain,mixed,4.5,5.412,False
+Chinese Grand Prix,Shanghai,China,mixed,3.5,5.451,False
+Azerbaijan Grand Prix,Baku,Azerbaijan,street,3.5,6.003,False
+Spanish Grand Prix,Barcelona,Spain,high_downforce,2.5,4.657,False
+Monaco Grand Prix,Monte Carlo,Monaco,street,1.0,3.337,False
+Canadian Grand Prix,Montreal,Canada,mixed,4.0,4.361,False
+French Grand Prix,Le Castellet,France,high_speed,3.0,5.842,False
+Austrian Grand Prix,Spielberg,Austria,high_speed,4.0,4.318,False
+British Grand Prix,Silverstone,Great Britain,high_speed,3.5,5.891,False
+German Grand Prix,Hockenheim,Germany,mixed,3.5,4.574,False
+Hungarian Grand Prix,Budapest,Hungary,high_downforce,1.5,4.381,False
+Belgian Grand Prix,Spa-Francorchamps,Belgium,high_speed,4.5,7.004,False
+Italian Grand Prix,Monza,Italy,high_speed,4.5,5.793,False
+Singapore Grand Prix,Marina Bay,Singapore,street,2.0,4.940,False
+Russian Grand Prix,Sochi,Russia,street,3.0,5.848,False
+Japanese Grand Prix,Suzuka,Japan,high_speed,2.5,5.807,False
+United States Grand Prix,Austin,United States,mixed,3.5,5.513,False
+Mexican Grand Prix,Mexico City,Mexico,mixed,3.0,4.304,False
+Mexico City Grand Prix,Mexico City,Mexico,mixed,3.0,4.304,False
+Brazilian Grand Prix,Sao Paulo,Brazil,mixed,4.0,4.309,False
+Sao Paulo Grand Prix,Sao Paulo,Brazil,mixed,4.0,4.309,False
+Abu Dhabi Grand Prix,Yas Marina,Abu Dhabi,mixed,3.5,5.281,False
+Tuscan Grand Prix,Mugello,Italy,high_speed,3.0,5.245,False
+Eifel Grand Prix,Nurburgring,Germany,mixed,3.0,5.148,False
+Portuguese Grand Prix,Portimao,Portugal,mixed,3.5,4.653,False
+Emilia Romagna Grand Prix,Imola,Italy,mixed,2.0,4.909,False
+Turkish Grand Prix,Istanbul,Turkey,high_speed,4.0,5.338,False
+Dutch Grand Prix,Zandvoort,Netherlands,mixed,2.0,4.259,False
+Qatar Grand Prix,Lusail,Qatar,high_speed,3.5,5.380,False
+Saudi Arabian Grand Prix,Jeddah,Saudi Arabia,street,3.5,6.174,False
+Miami Grand Prix,Miami,United States,street,3.0,5.412,False
+Miami Grand Prix,Miami Gardens,United States,street,3.0,5.412,False
+Las Vegas Grand Prix,Las Vegas,United States,street,4.0,6.201,False
+Styrian Grand Prix,Spielberg,Austria,high_speed,4.0,4.318,False
+70th Anniversary Grand Prix,Silverstone,Great Britain,high_speed,3.5,5.891,False
+Sakhir Grand Prix,Sakhir,Bahrain,mixed,4.5,3.543,True
+United Arab Emirates Grand Prix,Yas Marina,Abu Dhabi,mixed,3.5,5.281,False
+Cadillac Home Race,Unknown,United States,mixed,3.0,5.0,True

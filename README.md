@@ -2,6 +2,24 @@
 
 ML model trained on ~10 years of F1 data (via FastF1) to predict the 2026 constructor championship standings. Emphasizes early-season performance signals — auto-widened to cover however much of the season has actually run — and a rule-change-year adaptation variable to capture how teams historically perform during major regulation shifts like 2026.
 
+## v2 in progress
+
+A rebuild is underway that replaces the season-level regression below with a per-driver, per-race hierarchical Bayesian pace model, simulated forward to produce next-race, drivers'-championship, and constructors'-championship forecasts from one engine instead of three separate questions. Full design in [docs/grid-prophet-v2-spec.md](docs/grid-prophet-v2-spec.md).
+
+**Status: Phase 0 (data layer) complete.** `src/collect_v2.py` builds `data/driver_rounds.csv` — one row per driver per session (qualifying/sprint/race) per round, 2018–2026, including a clean-air lap filter, per-round weather, and DNF-cause categorization. Run it with:
+
+```bash
+PYTHONPATH=src python -m collect_v2 --start-year 2018 --end-year 2026   # resumable; re-run to pick up new rounds
+PYTHONPATH=src python -m build_driver_meta                              # derives data/driver_meta.csv (debut season per driver)
+PYTHONPATH=src python -m validate_driver_rounds                         # writes data/driver_rounds_validation.md
+```
+
+Supporting reference tables ([data/circuits.csv](data/circuits.csv), [data/dnf_status_map.csv](data/dnf_status_map.csv)) are hand-maintained and tracked in git; everything else FastF1-derived (`driver_rounds.csv`, `driver_meta.csv`, the FastF1 disk cache) is local and reproducible, same as the v1 outputs below.
+
+One validated finding worth knowing before building on this data: race clean-air pace correlates with qualifying gap at ~0.6 Spearman (median-lap version; a single-fastest-lap version was tried and performs worse, ~0.5) — below the spec's original ~0.8 assumption. Investigated and confirmed genuine (not a filter bug or bad data) — see the spec's §3.1 empirical note. The v2 model is designed to tolerate this (quali and race pace share latent car/driver terms but keep separate noise terms), so it's a documented characteristic of the signal, not an open blocker.
+
+The v1 pipeline below keeps running as-is — it's the benchmark v2 has to beat, per the spec's phase-3 exit criteria, not something being replaced yet.
+
 ## Quick Start
 
 Using [Claude Code](https://claude.com/claude-code)? Clone the repo and run `/pit-wall` — it installs dependencies and runs the full pipeline for you. Pass args to run a specific stage, e.g. `/pit-wall predict --ensemble` or `/pit-wall update`. See [.claude/skills/pit-wall/SKILL.md](.claude/skills/pit-wall/SKILL.md).
