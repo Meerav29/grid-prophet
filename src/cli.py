@@ -200,12 +200,19 @@ def forecast_race(idata, data, reliability_data, driver_rounds: pd.DataFrame, ci
     race_sigma_all = np.asarray(idata.posterior["race_sigma"]).reshape(-1)[draw_idx]
     quali_sigma_all = np.asarray(idata.posterior["quali_sigma"]).reshape(-1)[draw_idx]
 
+    # one mechanical-DNF draw per team per trial, shared across its two cars
+    # (model.reliability.sample_mechanical_dnf_prob's documented contract) --
+    # cached per team so teammates don't each get an independent draw.
+    team_dnf_prob = {}
+    for team in set(teams):
+        team_dnf_prob[team] = sample_mechanical_dnf_prob(reliability_data, team, season, n_trials, rng)
+
     for i, (driver, team) in enumerate(zip(driver_ids, teams)):
         rp = posterior_pace_draws(idata, data, team, driver, circuit_type, round_idx=round_idx)
         qp = posterior_quali_draws(idata, data, team, driver, round_idx=round_idx)
         race_pace[:, i] = rp[draw_idx]
         quali_pace[:, i] = qp[draw_idx]
-        dnf_prob[:, i] = sample_mechanical_dnf_prob(reliability_data, team, season, n_trials, rng)
+        dnf_prob[:, i] = team_dnf_prob[team]
 
     inputs = RaceTrialInputs(
         driver_ids=driver_ids, race_pace=race_pace,
