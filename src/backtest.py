@@ -101,7 +101,26 @@ def _brier(predicted_prob: dict, actual_hits: set) -> float:
     return float(np.mean(errs)) if errs else float("nan")
 
 
-def score_round(forecast: pd.DataFrame, driver_rounds: pd.DataFrame, season: int, round_: int) -> dict | None:
+def _spearman_vs_actual(forecast: pd.DataFrame, actual: pd.DataFrame) -> float:
+    common = [d for d in forecast["driver"] if d in set(actual["abbreviation"])]
+    model_rank = {d: i for i, d in enumerate(forecast.sort_values("exp_points", ascending=False)["driver"])
+                  if d in common}
+    actual_rank = dict(zip(actual["abbreviation"], actual["finish_position"]))
+    if len(common) < 3:
+        return float("nan")
+    spear, _ = spearmanr([model_rank[d] for d in common], [actual_rank[d] for d in common])
+    return spear
+
+
+def score_round(forecast: pd.DataFrame, driver_rounds: pd.DataFrame, season: int, round_: int,
+                 challenger_forecast: pd.DataFrame | None = None) -> dict | None:
+    """Score the Bayesian model's forecast against reality and against the
+    pole-wins / pace-rating baselines (spec sec 7). If `challenger_forecast`
+    is given, also scores the XGBoost challenger through the identical
+    metrics -- both models go through the same `sim.race` resolver and the
+    same reliability draws, so this is an apples-to-apples comparison (spec
+    sec 2: "phase 1's backtest decides whether it beats, matches, or gets
+    ensembled with the Bayesian model")."""
     actual = _actual_outcomes(driver_rounds, season, round_)
     if actual.empty:
         return None
@@ -120,26 +139,85 @@ def score_round(forecast: pd.DataFrame, driver_rounds: pd.DataFrame, season: int
     p_win_pole = _pole_wins_baseline(actual)
     p_win_pace = _pace_rating_baseline(driver_rounds, actual, season, round_)
 
-    # Spearman: model's expected order (by exp_points desc, i.e. best expected first)
-    # vs actual finishing order, over drivers present in both.
-    common = [d for d in forecast["driver"] if d in set(actual["abbreviation"])]
-    model_rank = {d: i for i, d in enumerate(forecast.sort_values("exp_points", ascending=False)["driver"])
-                  if d in common}
-    actual_rank = dict(zip(actual["abbreviation"], actual["finish_position"]))
-    if len(common) >= 3:
-        spear, _ = spearmanr([model_rank[d] for d in common], [actual_rank[d] for d in common])
-    else:
-        spear = float("nan")
-
-    return {
+    result = {
         "season": season, "round": round_, "n_drivers": len(actual),
         "log_loss_winner_model": _log_loss_winner(p_win_model, actual_winner),
         "log_loss_winner_pole": _log_loss_winner(p_win_pole, actual_winner),
         "log_loss_winner_pace_rating": _log_loss_winner(p_win_pace, actual_winner),
         "brier_podium_model": _brier(p_podium_model, podium),
         "brier_points_model": _brier(p_points_model, points_scorers),
-        "spearman_model": spear,
+        "spearman_model": _spearman_vs_actual(forecast, actual),
     }
+
+    if challenger_forecast is not None:
+        p_win_ch = dict(zip(challenger_forecast["driver"], challenger_forecast["p_win"]))
+        p_podium_ch = dict(zip(challenger_forecast["driver"], challenger_forecast["p_podium"]))
+        p_points_ch = dict(zip(challenger_forecast["driver"], challenger_forecast["p_points"]))
+        result.update({
+            "log_loss_winner_challenger": _log_loss_winner(p_win_ch, actual_winner),
+            "brier_podium_challenger": _brier(p_podium_ch, podium),
+            "brier_points_challenger": _brier(p_points_ch, points_scorers),
+            "spearman_challenger": _spearman_vs_actual(challenger_forecast, actual),
+        })
+
+    return result
+
+
+def forecast_race_challenger(challenger_model, reliability_data, driver_rounds: pd.DataFrame,
+                              circuits: pd.DataFrame, season: int, round_: int,
+                              n_trials: int = 3000, seed: int = 0) -> pd.DataFrame:
+    """Same race resolver, same reliability draws, pace sourced from the
+    XGBoost challenger's quantile function instead of the pace-model
+    posterior -- an apples-to-apples comparison against `cli.forecast_race`.
+
+    Simplification: the challenger has no separate quali equation (only the
+    Bayesian model does, per spec sec 3.1), so its own race-pace quantile
+    draws stand in for both race pace and grid here (quali/race noise set to
+    0 -- the quantile draw already carries the challenger's full predictive
+    uncertainty, so adding resolver noise on top would double-count it).
+    Since grid and race pace share the same per-trial draw, the grid-lock
+    term this induces doesn't reorder anything, so it is harmless."""
+    from model.challenger import sample_pace
+    from model.reliability import sample_mechanical_dnf_prob
+    from sim.race import RaceTrialInputs, simulate_positions, summarize_trials, load_points_table
+    from cli import _entrants_for_round, _circuit_info
+
+    rng = np.random.default_rng(seed)
+    entrants = _entrants_for_round(driver_rounds, season, round_)
+    circuit_type, overtaking_difficulty = _circuit_info(circuits, driver_rounds, season, round_)
+
+    hist = driver_rounds[(driver_rounds["session_type"] == "R") &
+                          ((driver_rounds["season"] < season) |
+                           ((driver_rounds["season"] == season) & (driver_rounds["round"] < round_)))]
+    hist = hist.dropna(subset=["gap_to_winner_median_clean_air_s"])
+    team_recent = hist.groupby("team")["gap_to_winner_median_clean_air_s"].apply(lambda s: s.tail(5).mean())
+    driver_recent = hist.groupby("abbreviation")["gap_to_winner_median_clean_air_s"].apply(lambda s: s.tail(5).mean())
+    field_mean = float(hist["gap_to_winner_median_clean_air_s"].mean()) if len(hist) else 1.0
+
+    driver_ids = entrants["abbreviation"].tolist()
+    teams = entrants["team"].tolist()
+    n_drivers = len(driver_ids)
+
+    race_pace = np.zeros((n_trials, n_drivers))
+    dnf_prob = np.zeros((n_trials, n_drivers))
+    team_dnf_cache = {team: sample_mechanical_dnf_prob(reliability_data, team, season, n_trials, rng)
+                       for team in set(teams)}
+
+    for i, (driver, team) in enumerate(zip(driver_ids, teams)):
+        trp = float(team_recent.get(team, field_mean))
+        drp = float(driver_recent.get(driver, field_mean))
+        race_pace[:, i] = sample_pace(challenger_model, team, driver, circuit_type, trp, drp, n_trials, rng)
+        dnf_prob[:, i] = team_dnf_cache[team]
+
+    inputs = RaceTrialInputs(
+        driver_ids=driver_ids, race_pace=race_pace,
+        race_noise_nu=np.full(n_trials, 8.0), race_noise_sigma=np.zeros(n_trials),
+        quali_pace=race_pace.copy(), quali_noise_sigma=np.zeros(n_trials),
+        dnf_prob=dnf_prob, overtaking_difficulty=overtaking_difficulty,
+    )
+    positions, dnf = simulate_positions(inputs, rng)
+    points_table = load_points_table()
+    return summarize_trials(positions, dnf, driver_ids, teams, points_table)
 
 
 def _calibration_bins(forecast: pd.DataFrame, actual: pd.DataFrame, col: str, threshold_fn) -> list[tuple[float, bool]]:
@@ -156,6 +234,7 @@ def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
                   rounds: str = "coarse", advi_steps: int = 4000, out_dir: str | None = None) -> pd.DataFrame:
     from model.pace import build_pace_data, fit_nuts, fit_advi
     from model.reliability import build_reliability_data
+    from model.challenger import build_challenger_frame, fit_challenger
     from cli import forecast_race, _load_circuits
 
     driver_rounds = pd.read_csv(os.path.join(DATA_DIR, "driver_rounds.csv"))
@@ -192,8 +271,18 @@ def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
             else:
                 idata = fit_nuts(data, draws=250, tune=250, chains=1)
             reliability_data = build_reliability_data(driver_rounds, through_season=season, through_round=through_round)
+
+            challenger_model = None
+            try:
+                challenger_frame = build_challenger_frame(driver_rounds, through_season=season,
+                                                            through_round=through_round)
+                if len(challenger_frame) >= 30:
+                    challenger_model = fit_challenger(challenger_frame)
+            except Exception as exc:
+                print(f"    WARNING: challenger fit failed: {exc}")
+
             fit_elapsed = time.time() - t0
-            print(f"    fit done in {fit_elapsed:.1f}s")
+            print(f"    fit done in {fit_elapsed:.1f}s (challenger={'yes' if challenger_model else 'no'})")
 
             # score round r, and (coarse mode) every round strictly between this
             # fit and the next fit-round using this same posterior, per sec 7's
@@ -208,7 +297,18 @@ def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
                 except Exception as exc:
                     print(f"    WARNING: forecast failed for {season}:{rr}: {exc}")
                     continue
-                metrics = score_round(forecast, driver_rounds, season, rr)
+
+                challenger_forecast = None
+                if challenger_model is not None:
+                    try:
+                        challenger_forecast = forecast_race_challenger(
+                            challenger_model, reliability_data, driver_rounds, circuits,
+                            season, rr, n_trials=n_trials, seed=rr,
+                        )
+                    except Exception as exc:
+                        print(f"    WARNING: challenger forecast failed for {season}:{rr}: {exc}")
+
+                metrics = score_round(forecast, driver_rounds, season, rr, challenger_forecast=challenger_forecast)
                 if metrics is not None:
                     metrics["fit_elapsed_s"] = fit_elapsed
                     results.append(metrics)
@@ -248,6 +348,18 @@ def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
             "beats_pace_rating_baseline": bool(metrics_df["log_loss_winner_model"].mean() <
                                                 metrics_df["log_loss_winner_pace_rating"].mean()),
         })
+        if "log_loss_winner_challenger" in metrics_df.columns and metrics_df["log_loss_winner_challenger"].notna().any():
+            ch = metrics_df.dropna(subset=["log_loss_winner_challenger"])
+            summary.update({
+                "n_rounds_scored_challenger": len(ch),
+                "mean_log_loss_winner_challenger": float(ch["log_loss_winner_challenger"].mean()),
+                "mean_brier_podium_challenger": float(ch["brier_podium_challenger"].mean()),
+                "mean_brier_points_challenger": float(ch["brier_points_challenger"].mean()),
+                "mean_spearman_challenger": float(ch["spearman_challenger"].mean()),
+                "bayesian_beats_challenger_log_loss": bool(
+                    ch["log_loss_winner_model"].mean() < ch["log_loss_winner_challenger"].mean()
+                ),
+            })
     with open(os.path.join(outdir, "backtest_summary.json"), "w") as f:
         json.dump(summary, f, indent=2)
 
