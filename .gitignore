@@ -8,6 +8,10 @@ models/*.json
 dist/
 build/
 
+# v2 fit/backtest artifacts (spec sec 6: "one directory per fit timestamp") --
+# reproducible via `gp fit` / `gp backtest`, not checked in.
+outputs/
+
 # Ignore everything under data/ except the small hand-maintained v2 reference
 # tables (circuits.csv, dnf_status_map.csv) -- generated/collected data
 # (race_results.csv, driver_rounds.csv, features.csv, predictions*.csv,
@@ -16,3 +20,5 @@ data/*
 !data/.gitkeep
 !data/circuits.csv
 !data/dnf_status_map.csv
+!data/points_tables.csv
+!data/driver_rounds_validation.md
