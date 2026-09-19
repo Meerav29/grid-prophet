@@ -20,7 +20,7 @@ Terminal: `held` (owner vetoed), `blocked` (review rejected).
 
 ## slice-1 — Quali conditioning and `gp race --mode post-quali`
 
-Status: todo
+Status: in-progress
 Spec: `docs/grid-prophet-v2-spec.md` §3.3 (step 3), §6 (post-quali conditioning
 and the fallback protocol), §8 Phase 2
 
