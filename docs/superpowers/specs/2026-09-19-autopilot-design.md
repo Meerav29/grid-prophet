@@ -117,11 +117,31 @@ backtest and status doc) are out of scope for this window.
 
 ### aperture queue (code-only)
 
-1. **Repository/worktree grouping** — R6, currently "Planned" in `docs/goals.md`
-2. **Process liveness signal** — named as future work in the Windows follow-up
-3. **Search/filter + details pane** — R11
+Sequenced against `docs/roadmap.md`, which places today inside **Phase A —
+Dogfood gate (Sep 16 → Oct 9)**. Phase A's gate is owner-verified: five clean
+dogfood workdays and six evidenced Windows rows. Autopilot cannot advance it.
+What it can take is Phase A item 1, the correctness leftovers.
 
-Chosen because each has a real unit-test gate and none requires host evidence.
+1. **Issue #18** — `load_summaries` silently drops rows that fail to
+   deserialize. First, because #18 argues that #9 and #7 will change `Session`'s
+   shape and risk orphaning persisted rows unless this lands ahead of them.
+2. **Issue #17** — `Store.sessions` never evicts; roadmap proposes a 14-day
+   no-observation rule, evicted from memory but retained in SQLite.
+3. **Issue #20** — multi-step migration test coverage. Pure test work on the
+   storage layer slices 1 and 2 both touch; sequence-neutral.
+
+Each has acceptance criteria already written on the issue, which the queue
+copies verbatim rather than paraphrasing.
+
+**Corrected during setup.** The first draft of this queue picked #7 (Git
+identity, Phase B), process liveness, and #11 (filters, Phase C — December).
+All three were out of sequence, and #7 was precisely the work #18 says should
+come *after* it. The roadmap was written 2026-09-16 and had not been pulled into
+the local checkout when the queue was drafted. Reading it changed the answer.
+
+The roadmap also caps work in progress at two open implementation branches,
+because "agents can implement faster than the owner can verify." The halt rule
+in §7.2 keeps autopilot at one.
 
 ## 7. Build routine contract
 
@@ -183,13 +203,19 @@ Required sections. A missing section is a review rejection.
 
 ```markdown
 ## What this slice does
+## Review pack
+<what the owner runs and looks at, sized to 30 minutes or less>
 ## Acceptance criteria
 <each criterion, with the command run and its output as evidence>
+<for aperture: state which checks ran in the sandbox and which only in CI>
 ## Decisions made without you
 <each, with the alternative rejected and why — or "none">
 ## Deliberately not included
 ## How to revert
 ```
+
+The review pack is required by aperture's `docs/roadmap.md` ("A PR without a
+review pack is not ready"). Applied to both repos for consistency.
 
 ## 10. Prohibitions
 
