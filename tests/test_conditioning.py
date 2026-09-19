@@ -12,6 +12,7 @@ import types
 import numpy as np
 import pandas as pd
 import pytest
+import xarray as xr
 
 from model.conditioning import (
     EARLY_SEASON_ROUNDS, FALLBACK_FULL_REFIT, RELAXED_TARGET_S, WARM_START,
@@ -35,8 +36,7 @@ def _FakeClock(ticks):
 
 
 def _run(round_, ticks):
-    """Run the protocol with fits that record which of them was called."""
-    calls = []
+    calls = []  # records which of the two fits actually ran
     idata, record = run_conditioning(
         2026, round_,
         lambda: (calls.append("warm"), "warm-idata")[1],
@@ -112,20 +112,21 @@ class TestConditioningLog:
 
 
 def _fake_data(n_rounds=5):
-    return types.SimpleNamespace(n_teams=2, n_drivers=4, n_rounds=n_rounds,
-                                  n_circuit_types=len(CIRCUIT_TYPES))
+    return types.SimpleNamespace(n_teams=2, n_drivers=4, n_rounds=n_rounds, n_circuit_types=len(CIRCUIT_TYPES))
 
 
 def _fake_idata(n_rounds=5, chains=2, draws=3):
-    import arviz as az
-
+    """Stands in for a pre-weekend fit's posterior: a plain xarray Dataset, not
+    `arviz.from_dict`, whose signature differs between the arviz 0.x and 1.x
+    lines pip picks between by Python version. xarray is all the code uses."""
     rng = np.random.default_rng(0)
-    shapes = {"car0": (2,), "car_step_raw": (2, n_rounds - 1), "driver_skill": (4,),
-               "quali_offset": (4,), "driver_track": (4, len(CIRCUIT_TYPES)),
-               "race_nu": (), "race_sigma": (), "quali_sigma": ()}
-    # positive draws throughout: race_nu and the sigmas are constrained
-    return az.from_dict(posterior={name: np.abs(rng.normal(size=(chains, draws) + shape)) + 0.5
-                                    for name, shape in shapes.items()})
+    sizes = {"team": 2, "step": n_rounds - 1, "driver": 4, "circuit_type": len(CIRCUIT_TYPES)}
+    dims = {"car0": ("team",), "car_step_raw": ("team", "step"), "driver_skill": ("driver",),
+             "quali_offset": ("driver",), "driver_track": ("driver", "circuit_type"),
+             "race_nu": (), "race_sigma": (), "quali_sigma": ()}
+    return types.SimpleNamespace(posterior=xr.Dataset({  # positive: nu/sigmas are constrained
+        n: (("chain", "draw") + d, np.abs(rng.normal(size=(chains, draws, *(sizes[x] for x in d)))) + 0.5)
+        for n, d in dims.items()}))
 
 
 class TestWarmStartInitvals:

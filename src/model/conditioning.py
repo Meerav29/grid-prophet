@@ -85,8 +85,7 @@ def run_conditioning(season: int, round_: int, warm_fit, full_fit,
         fallback_s = clock() - t1
 
     total_s = warm_s + fallback_s
-    # a warm start inside its target is on time by definition; only a round
-    # that fell back is held to a target at all
+    # a warm start inside its target is on time by definition
     applied = (time_target_s(round_, warm_target_s, relaxed_target_s, early_rounds)
                 if fell_back else warm_target_s)
 
