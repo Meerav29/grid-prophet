@@ -20,7 +20,10 @@ Terminal: `held` (owner vetoed), `blocked` (review rejected).
 
 ## slice-1 — Quali conditioning and `gp race --mode post-quali`
 
-Status: in-review
+Status: blocked — review rejected PR #5 on the first acceptance criterion.
+Needs an owner decision, not a rebuild: `data/driver_rounds.csv` is gitignored,
+so "runs end to end on a completed round" cannot be checked by any cloud
+routine. See the review on #5 for the three ways out.
 Spec: `docs/grid-prophet-v2-spec.md` §3.3 (step 3), §6 (post-quali conditioning
 and the fallback protocol), §8 Phase 2
 
