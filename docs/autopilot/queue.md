@@ -20,10 +20,20 @@ Terminal: `held` (owner vetoed), `blocked` (review rejected).
 
 ## slice-1 — Quali conditioning and `gp race --mode post-quali`
 
-Status: blocked — review rejected PR #5 on the first acceptance criterion.
-Needs an owner decision, not a rebuild: `data/driver_rounds.csv` is gitignored,
-so "runs end to end on a completed round" cannot be checked by any cloud
-routine. See the review on #5 for the three ways out.
+Status: todo — owner unblock (2026-09-24, option 1 from the review on #5).
+`data/driver_rounds_fixture.csv` is now committed: 80 real rows (2024 rounds
+1–2, Q + R, via `collect_v2`'s own collection functions, not hand-written) with
+`grid_position` populated on the race rows. Copy or symlink it to
+`data/driver_rounds.csv` before running `gp fit` / `gp race` to exercise
+criterion 1 against real data. Verified working end to end against PR #5's own
+code (`b19c544`): `gp fit --through 2024:1` then `gp race --season 2024
+--round 2 --mode post-quali` ran clean and produced a sane forecast (Verstappen
+favored at p_win≈0.57 in Jeddah, who won that race). PR #5 itself was not
+touched — this only adds the previously-missing data; picking it up (a rebuild,
+or re-running the existing synthetic-free path against the fixture) is the next
+routine's job. See the review on #5 for the two remaining alternative
+unblocks (reword criterion 1 / manual merge) if this one turns out to be
+insufficient for slices 2–3, which carry similar criteria.
 Spec: `docs/grid-prophet-v2-spec.md` §3.3 (step 3), §6 (post-quali conditioning
 and the fallback protocol), §8 Phase 2
 

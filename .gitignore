@@ -22,3 +22,8 @@ data/*
 !data/dnf_status_map.csv
 !data/points_tables.csv
 !data/driver_rounds_validation.md
+
+# Owner carve-out (2026-09-24, see docs/autopilot/queue.md slice-1): a small
+# real driver_rounds.csv fixture so "runs end to end on a completed round"
+# criteria are checkable in CI/by autopilot without the full local backfill.
+!data/driver_rounds_fixture.csv

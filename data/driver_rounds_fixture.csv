@@ -1,0 +1,81 @@
+season,round,event_name,circuit_type,session_type,driver,abbreviation,team,grid_position,finish_position,classified,status,dnf_cause,q_segment,best_lap_s,gap_to_best_s,best_clean_air_lap_s,gap_to_winner_best_clean_air_s,median_clean_air_lap_s,gap_to_winner_median_clean_air_s,points,is_wet,air_temp_c
+2024,1,Bahrain Grand Prix,mixed,Q,Max Verstappen,VER,Red Bull Racing,,1.0,True,,,Q3,89.179,0.0,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Charles Leclerc,LEC,Ferrari,,2.0,True,,,Q3,89.407,0.22799999999999443,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,George Russell,RUS,Mercedes,,3.0,True,,,Q3,89.485,0.3059999999999974,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Carlos Sainz,SAI,Ferrari,,4.0,True,,,Q3,89.507,0.32800000000000296,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Sergio Perez,PER,Red Bull Racing,,5.0,True,,,Q3,89.537,0.3580000000000041,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Fernando Alonso,ALO,Aston Martin,,6.0,True,,,Q3,89.542,0.36299999999999955,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Lando Norris,NOR,McLaren,,7.0,True,,,Q3,89.614,0.4350000000000023,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Oscar Piastri,PIA,McLaren,,8.0,True,,,Q3,89.683,0.5040000000000049,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Lewis Hamilton,HAM,Mercedes,,9.0,True,,,Q3,89.71,0.5309999999999917,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Nico Hulkenberg,HUL,Haas F1 Team,,10.0,True,,,Q3,90.502,1.3229999999999933,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Yuki Tsunoda,TSU,RB,,11.0,True,,,Q2,90.129,0.9500000000000028,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Lance Stroll,STR,Aston Martin,,12.0,True,,,Q2,90.2,1.0210000000000008,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Alexander Albon,ALB,Williams,,13.0,True,,,Q2,90.221,1.0420000000000016,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Daniel Ricciardo,RIC,RB,,14.0,True,,,Q2,90.278,1.0990000000000038,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Kevin Magnussen,MAG,Haas F1 Team,,15.0,True,,,Q2,90.529,1.3499999999999943,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Valtteri Bottas,BOT,Kick Sauber,,16.0,True,,,Q1,90.756,1.5769999999999982,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Guanyu Zhou,ZHO,Kick Sauber,,17.0,True,,,Q1,90.757,1.578000000000003,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Logan Sargeant,SAR,Williams,,18.0,True,,,Q1,90.77,1.590999999999994,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Esteban Ocon,OCO,Alpine,,19.0,True,,,Q1,90.793,1.6140000000000043,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,Q,Pierre Gasly,GAS,Alpine,,20.0,True,,,Q1,90.948,1.7689999999999912,,,,,0.0,False,18.049350649350657
+2024,1,Bahrain Grand Prix,mixed,R,Max Verstappen,VER,Red Bull Racing,1.0,1.0,True,Finished,,,,,92.608,0.0,95.4095,0.0034999999999882903,26.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Sergio Perez,PER,Red Bull Racing,5.0,2.0,True,Finished,,,,,94.364,1.7560000000000002,95.842,0.43599999999999284,18.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Carlos Sainz,SAI,Ferrari,4.0,3.0,True,Finished,,,,,94.507,1.899000000000001,95.44,0.033999999999991815,15.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Charles Leclerc,LEC,Ferrari,2.0,4.0,True,Finished,,,,,94.09,1.4819999999999993,95.406,0.0,12.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,George Russell,RUS,Mercedes,3.0,5.0,True,Finished,,,,,95.065,2.4569999999999936,96.35,0.9439999999999884,10.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Lando Norris,NOR,McLaren,7.0,6.0,True,Finished,,,,,94.88,2.2719999999999914,96.5365,1.1304999999999978,8.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Lewis Hamilton,HAM,Mercedes,9.0,7.0,True,Finished,,,,,94.722,2.11399999999999,96.1515,0.7454999999999927,6.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Oscar Piastri,PIA,McLaren,8.0,8.0,True,Finished,,,,,94.774,2.165999999999997,96.577,1.1709999999999923,4.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Fernando Alonso,ALO,Aston Martin,6.0,9.0,True,Finished,,,,,94.199,1.590999999999994,97.064,1.657999999999987,2.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Lance Stroll,STR,Aston Martin,12.0,10.0,True,Finished,,,,,95.987,3.3789999999999907,96.66,1.2539999999999907,1.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Guanyu Zhou,ZHO,Kick Sauber,17.0,11.0,True,Lapped,,,,,96.048,3.4399999999999977,97.0915,1.6854999999999905,0.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Kevin Magnussen,MAG,Haas F1 Team,15.0,12.0,True,Lapped,,,,,95.57,2.961999999999989,96.93,1.524000000000001,0.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Daniel Ricciardo,RIC,RB,14.0,13.0,True,Lapped,,,,,95.163,2.5549999999999926,97.176,1.769999999999996,0.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Yuki Tsunoda,TSU,RB,11.0,14.0,True,Lapped,,,,,95.956,3.347999999999999,97.4795,2.0734999999999957,0.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Alexander Albon,ALB,Williams,13.0,15.0,True,Lapped,,,,,95.723,3.114999999999995,97.102,1.695999999999998,0.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Nico Hulkenberg,HUL,Haas F1 Team,10.0,16.0,True,Lapped,,,,,94.834,2.225999999999999,96.784,1.3780000000000001,0.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Esteban Ocon,OCO,Alpine,19.0,17.0,True,Lapped,,,,,96.226,3.617999999999995,97.404,1.9979999999999905,0.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Pierre Gasly,GAS,Alpine,20.0,18.0,True,Lapped,,,,,94.805,2.1970000000000027,95.908,0.5019999999999953,0.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Valtteri Bottas,BOT,Kick Sauber,16.0,19.0,True,Lapped,,,,,96.202,3.593999999999994,97.189,1.782999999999987,0.0,False,18.22738853503185
+2024,1,Bahrain Grand Prix,mixed,R,Logan Sargeant,SAR,Williams,18.0,20.0,True,Lapped,,,,,94.735,2.1269999999999953,96.859,1.4529999999999887,0.0,False,18.22738853503185
+2024,2,Saudi Arabian Grand Prix,street,Q,Max Verstappen,VER,Red Bull Racing,,1.0,True,,,Q3,87.472,0.0,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Charles Leclerc,LEC,Ferrari,,2.0,True,,,Q3,87.791,0.3190000000000026,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Sergio Perez,PER,Red Bull Racing,,3.0,True,,,Q3,87.807,0.33500000000000796,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Fernando Alonso,ALO,Aston Martin,,4.0,True,,,Q3,87.846,0.37400000000000944,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Oscar Piastri,PIA,McLaren,,5.0,True,,,Q3,88.089,0.6170000000000044,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Lando Norris,NOR,McLaren,,6.0,True,,,Q3,88.132,0.6600000000000108,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,George Russell,RUS,Mercedes,,7.0,True,,,Q3,88.316,0.8440000000000083,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Lewis Hamilton,HAM,Mercedes,,8.0,True,,,Q3,88.46,0.9879999999999995,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Yuki Tsunoda,TSU,RB,,9.0,True,,,Q3,88.547,1.0750000000000028,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Lance Stroll,STR,Aston Martin,,10.0,True,,,Q3,88.572,1.1000000000000085,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Oliver Bearman,BEA,Ferrari,,11.0,True,,,Q2,88.642,1.1700000000000017,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Alexander Albon,ALB,Williams,,12.0,True,,,Q2,88.98,1.5080000000000098,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Kevin Magnussen,MAG,Haas F1 Team,,13.0,True,,,Q2,89.02,1.5480000000000018,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Daniel Ricciardo,RIC,RB,,14.0,True,,,Q2,89.025,1.5530000000000115,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Nico Hulkenberg,HUL,Haas F1 Team,,15.0,True,,,Q1,89.055,1.5830000000000126,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Valtteri Bottas,BOT,Kick Sauber,,16.0,True,,,Q1,89.179,1.7070000000000078,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Esteban Ocon,OCO,Alpine,,17.0,True,,,Q1,89.475,2.003,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Pierre Gasly,GAS,Alpine,,18.0,True,,,Q1,89.479,2.007000000000005,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Logan Sargeant,SAR,Williams,,19.0,True,,,Q1,89.526,2.054000000000002,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,Q,Guanyu Zhou,ZHO,Kick Sauber,,20.0,False,,,,,,,,,,0.0,False,25.10638297872341
+2024,2,Saudi Arabian Grand Prix,street,R,Max Verstappen,VER,Red Bull Racing,1.0,1.0,True,Finished,,,,,91.773,0.14099999999999113,92.784,0.12700000000000955,25.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Sergio Perez,PER,Red Bull Racing,3.0,2.0,True,Finished,,,,,92.273,0.6409999999999911,92.75,0.09300000000000352,18.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Charles Leclerc,LEC,Ferrari,2.0,3.0,True,Finished,,,,,91.632,0.0,92.863,0.20600000000000307,16.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Oscar Piastri,PIA,McLaren,5.0,4.0,True,Finished,,,,,92.31,0.6779999999999973,92.657,0.0,12.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Fernando Alonso,ALO,Aston Martin,4.0,5.0,True,Finished,,,,,92.387,0.7549999999999955,93.493,0.8359999999999985,10.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,George Russell,RUS,Mercedes,7.0,6.0,True,Finished,,,,,92.68,1.0480000000000018,93.631,0.9740000000000038,8.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Oliver Bearman,BEA,Ferrari,11.0,7.0,True,Finished,,,,,92.186,0.554000000000002,93.171,0.51400000000001,6.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Lando Norris,NOR,McLaren,6.0,8.0,True,Finished,,,,,91.944,0.3119999999999976,93.631,0.9740000000000038,4.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Lewis Hamilton,HAM,Mercedes,8.0,9.0,True,Finished,,,,,93.314,1.681999999999988,93.742,1.085000000000008,2.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Nico Hulkenberg,HUL,Haas F1 Team,15.0,10.0,True,Finished,,,,,92.366,0.7339999999999947,94.2085,1.5515000000000043,1.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Alexander Albon,ALB,Williams,12.0,11.0,True,Finished,,,,,92.307,0.6749999999999972,92.997,0.3400000000000034,0.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Kevin Magnussen,MAG,Haas F1 Team,13.0,12.0,True,Finished,,,,,92.338,0.7059999999999889,93.923,1.2660000000000053,0.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Esteban Ocon,OCO,Alpine,17.0,13.0,True,Lapped,,,,,93.481,1.8489999999999895,93.7365,1.0795000000000101,0.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Logan Sargeant,SAR,Williams,19.0,14.0,True,Lapped,,,,,93.383,1.7509999999999906,95.1485,2.491500000000002,0.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Yuki Tsunoda,TSU,RB,9.0,15.0,True,Lapped,,,,,93.523,1.8909999999999911,93.6875,1.0305000000000035,0.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Daniel Ricciardo,RIC,RB,14.0,16.0,True,Lapped,,,,,93.436,1.804000000000002,95.285,2.628,0.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Valtteri Bottas,BOT,Kick Sauber,16.0,17.0,True,Lapped,,,,,92.706,1.073999999999998,95.2275,2.5705000000000098,0.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Guanyu Zhou,ZHO,Kick Sauber,20.0,18.0,True,Lapped,,,,,92.208,0.5759999999999934,94.879,2.2220000000000084,0.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Lance Stroll,STR,Aston Martin,10.0,19.0,True,Retired,other,,,,95.56,3.9279999999999973,95.7625,3.1055000000000064,0.0,False,25.528082191780825
+2024,2,Saudi Arabian Grand Prix,street,R,Pierre Gasly,GAS,Alpine,18.0,20.0,True,Retired,other,,,,,,,,0.0,False,25.528082191780825
