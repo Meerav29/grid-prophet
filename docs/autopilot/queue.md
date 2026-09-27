@@ -33,9 +33,10 @@ Two things carried forward from this slice:
 - **`gp fit` fails on Python 3.12, which is what CI runs.** `requirements.txt`
   declares no netCDF backend and relied on arviz 0.x pulling `h5netcdf` in;
   arviz 1.x dropped that, so `idata.to_netcdf` raises. Sampling succeeds, the
-  write fails. CI is green only because no test exercises `cmd_fit`. One line
-  fixes it (`h5netcdf>=1.0`); it is Phase 1 surface and not yet done.
-  **Any slice adding a CI test that calls `gp fit` needs this first.**
+  write fails. CI is green only because no test exercises `cmd_fit`.
+  **Fixed 2026-09-27** by declaring `h5netcdf[h5py]>=1.0` in `requirements.txt`.
+  Plain `h5netcdf` is not enough: 1.8+ no longer installs `h5py`. Verified in a
+  clean venv (arviz 1.3.0, no netCDF4), where `idata.nc` wrote and read back.
 - The fixture has no sprint weekend, so slice-2 may need true sprint values
   hard-coded in its test.
 Spec: `docs/grid-prophet-v2-spec.md` §3.3 (step 3), §6 (post-quali conditioning
