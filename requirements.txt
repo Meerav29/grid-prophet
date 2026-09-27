@@ -13,3 +13,6 @@ seaborn>=0.12
 # C extension call path on Windows -- see src/model/challenger.py docstring.
 pymc>=5.0
 arviz>=0.17
+# arviz 1.x no longer installs a netCDF engine, and h5netcdf>=1.8 no longer
+# installs h5py; without both, `gp fit` fails writing idata.nc on Python 3.12.
+h5netcdf[h5py]>=1.0
