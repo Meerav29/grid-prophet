@@ -20,14 +20,24 @@ Terminal: `held` (owner vetoed), `blocked` (review rejected).
 
 ## slice-1 — Quali conditioning and `gp race --mode post-quali`
 
-Status: in-review — owner unblock 2026-09-26 (option 1 from the review on #5).
-`data/driver_rounds_fixture.csv` is now committed: 80 real rows (2024 R1–R2,
-Q + R). Copy it to `data/driver_rounds.csv` to check criterion 1. The owner ran
-`gp fit --through 2024:1` then `gp race --season 2024 --round 2 --mode
-post-quali` against PR #5's head `b19c544` with it: both exited 0; evidence is
-in the comment on #5. Do not rebuild slice-1. PR #5 stands as is. The fixture
-has no sprint weekend; slice-2 may need true sprint values hard-coded in its
-test.
+Status: merged — PR #5 merged by the owner 2026-09-27 (`abd045a`).
+
+Criterion 1 was unblocked by option 1: `data/driver_rounds_fixture.csv`, 80 real
+rows (2024 R1–R2, Q + R). Copy it to `data/driver_rounds.csv` to run the
+criterion. It was checked twice against PR #5's head `b19c544` — by the owner
+locally, and independently in a cloud sandbox — with matching forecasts
+(VER p_win 0.569 vs 0.5662). Evidence is in the comments on #5.
+
+Two things carried forward from this slice:
+
+- **`gp fit` fails on Python 3.12, which is what CI runs.** `requirements.txt`
+  declares no netCDF backend and relied on arviz 0.x pulling `h5netcdf` in;
+  arviz 1.x dropped that, so `idata.to_netcdf` raises. Sampling succeeds, the
+  write fails. CI is green only because no test exercises `cmd_fit`. One line
+  fixes it (`h5netcdf>=1.0`); it is Phase 1 surface and not yet done.
+  **Any slice adding a CI test that calls `gp fit` needs this first.**
+- The fixture has no sprint weekend, so slice-2 may need true sprint values
+  hard-coded in its test.
 Spec: `docs/grid-prophet-v2-spec.md` §3.3 (step 3), §6 (post-quali conditioning
 and the fallback protocol), §8 Phase 2
 
