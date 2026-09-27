@@ -4,9 +4,9 @@ Run as: `python -m src.cli fit --through 2026:16` (PYTHONPATH doesn't matter
 here since this module resolves its own sibling imports at call time; run
 from the repo root).
 
-Phase 1 scope: only `fit` and `race --mode pre` are implemented (plus
-`backtest`, which drives the phase 1 evaluation in sec 7). `race --mode
-post-quali` and `season` are phase 2/3.
+Implemented: `fit`, `race --mode pre`, `race --mode post-quali` (Phase 2,
+spec sec 6 conditioning), and `backtest` (the sec 7 evaluation). `season` is
+Phase 3.
 """
 
 from __future__ import annotations
@@ -163,6 +163,34 @@ def _entrants_for_round(driver_rounds: pd.DataFrame, season: int, round_: int) -
     return entrants.dropna()
 
 
+def _real_grid_for_round(driver_rounds: pd.DataFrame, season: int, round_: int,
+                          driver_ids: list) -> np.ndarray:
+    """The round's actual starting grid as 1-indexed positions aligned to
+    `driver_ids` (spec sec 3.3 step 3, "post-quali mode uses the real grid").
+
+    Read from `grid_position` on the round's race rows -- FastF1's
+    `GridPosition`, which already reflects penalties, so it is the grid the
+    race started from rather than quali classification. FastF1 writes 0 for a
+    pit-lane start; those and any missing value rank to the back, not to pole.
+    Ranks are dense 1..n, so gaps in the grid numbers still come out as a
+    clean permutation. Raises if the round has no usable grid at all: silently
+    degrading to a simulated one would misreport which mode produced the
+    forecast."""
+    rows = driver_rounds[(driver_rounds["season"] == season) & (driver_rounds["round"] == round_)
+                          & (driver_rounds["session_type"] == "R")]
+    if rows.empty or "grid_position" not in rows.columns:
+        raise ValueError(f"No race rows with a grid for {season}:{round_}; "
+                          "--mode post-quali needs a completed quali session.")
+
+    by_driver = dict(zip(rows["abbreviation"], rows["grid_position"]))
+    values = pd.Series([by_driver.get(d) for d in driver_ids], dtype="float64")
+    values = values.where(values > 0)  # 0 = pit-lane start, NaN = no recorded start
+    if values.isna().all():
+        raise ValueError(f"No usable grid_position values for {season}:{round_}; "
+                          "--mode post-quali needs a completed quali session.")
+    return values.rank(method="first", na_option="bottom").to_numpy(dtype=int)
+
+
 def _circuit_info(circuits: pd.DataFrame, driver_rounds: pd.DataFrame, season: int, round_: int) -> tuple[str, float]:
     rows = driver_rounds[(driver_rounds["season"] == season) & (driver_rounds["round"] == round_)]
     if rows.empty:
@@ -175,7 +203,12 @@ def _circuit_info(circuits: pd.DataFrame, driver_rounds: pd.DataFrame, season: i
 
 
 def forecast_race(idata, data, reliability_data, driver_rounds: pd.DataFrame, circuits: pd.DataFrame,
-                   season: int, round_: int, n_trials: int = 50_000, seed: int = 0) -> pd.DataFrame:
+                   season: int, round_: int, n_trials: int = 50_000, seed: int = 0,
+                   mode: str = "pre") -> pd.DataFrame:
+    """Forecast one round. `mode="pre"` simulates quali for the grid,
+    `mode="post-quali"` uses the round's real one (spec sec 3.3 step 3); the
+    grid is resolved here, not passed in, so it cannot drift out of alignment
+    with the entrant ordering built below."""
     from model.pace import posterior_pace_draws, posterior_quali_draws
     from model.reliability import sample_mechanical_dnf_prob
     from sim.race import RaceTrialInputs, simulate_positions, summarize_trials, load_points_table
@@ -188,6 +221,7 @@ def forecast_race(idata, data, reliability_data, driver_rounds: pd.DataFrame, ci
     driver_ids = entrants["abbreviation"].tolist()
     teams = entrants["team"].tolist()
     n_drivers = len(driver_ids)
+    grid = _real_grid_for_round(driver_rounds, season, round_, driver_ids) if mode == "post-quali" else None
 
     n_posterior = idata.posterior.sizes["chain"] * idata.posterior.sizes["draw"]
     draw_idx = rng.integers(0, n_posterior, size=n_trials)
@@ -219,6 +253,7 @@ def forecast_race(idata, data, reliability_data, driver_rounds: pd.DataFrame, ci
         race_noise_nu=race_nu_all, race_noise_sigma=race_sigma_all,
         quali_pace=quali_pace, quali_noise_sigma=quali_sigma_all,
         dnf_prob=dnf_prob, overtaking_difficulty=overtaking_difficulty,
+        grid=grid,
     )
     positions, dnf = simulate_positions(inputs, rng)
     points_table = load_points_table()
@@ -226,10 +261,6 @@ def forecast_race(idata, data, reliability_data, driver_rounds: pd.DataFrame, ci
 
 
 def cmd_race(args):
-    if args.mode != "pre":
-        print(f"mode={args.mode!r} is not implemented in phase 1 (only --mode pre)", file=sys.stderr)
-        sys.exit(2)
-
     fit_dir = args.fit_dir
     if fit_dir is None:
         if not os.path.exists(LATEST_POINTER):
@@ -241,11 +272,30 @@ def cmd_race(args):
     driver_rounds = _load_driver_rounds()
     circuits = _load_circuits()
 
-    forecast = forecast_race(idata, data, reliability_data, driver_rounds, circuits,
-                              args.season, args.round, n_trials=args.n_trials, seed=args.seed)
-
     out_dir = args.out_dir or fit_dir
     os.makedirs(out_dir, exist_ok=True)
+
+    if args.mode == "post-quali":
+        from model.conditioning import append_record, condition_on_quali
+
+        print(f"Conditioning on {args.season}:{args.round} quali (warm-started NUTS refit) ...")
+        idata, data, record = condition_on_quali(
+            driver_rounds, _load_driver_meta(), args.season, args.round, idata,
+            chains=args.chains, seed=args.seed,
+        )
+        # the per-round fallback record sec 6 requires: appended, not overwritten
+        log_path = append_record(os.path.join(out_dir, "conditioning_log.csv"), record)
+        print(f"  path={record.path} warm_start={record.warm_start_s:.1f}s "
+              f"total={record.total_s:.1f}s target={record.applied_target_s:.0f}s -> {log_path}")
+        if record.regression:
+            print("  REGRESSION: missed the target that applies to this round. Spec sec 6: "
+                  "a late-season miss is a real regression, not an accepted exception.",
+                  file=sys.stderr)
+
+    forecast = forecast_race(idata, data, reliability_data, driver_rounds, circuits,
+                              args.season, args.round, n_trials=args.n_trials, seed=args.seed,
+                              mode=args.mode)
+
     out_path = os.path.join(out_dir, f"race_forecast_{args.season}_{args.round}.csv")
     forecast.to_csv(out_path, index=False)
     print(forecast.to_string(index=False))
@@ -294,6 +344,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_race.add_argument("--fit-dir", default=None)
     p_race.add_argument("--out-dir", default=None)
     p_race.add_argument("--n-trials", type=int, default=50_000)
+    p_race.add_argument("--chains", type=int, default=2, help="chains for the post-quali refit")
     p_race.add_argument("--seed", type=int, default=0)
     p_race.set_defaults(func=cmd_race)
 

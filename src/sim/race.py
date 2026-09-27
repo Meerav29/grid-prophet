@@ -1,4 +1,4 @@
-"""Single-race resolver, pre-weekend mode (spec sec 3.3).
+"""Single-race resolver, pre-weekend and post-quali modes (spec sec 3.3).
 
 Per simulated trial:
   1. Draw car/driver/interaction terms from the posterior (done by the
@@ -6,11 +6,12 @@ Per simulated trial:
      resulting arrays).
   2. Compute each driver's pace; add race noise.
   3. Pre-weekend mode: simulate quali first (its own pace + noise) to get a
-     grid, then apply a track-specific overtaking-difficulty parameter to
-     turn (grid, race pace) into a finishing order -- a fixed per-circuit
-     value from `data/circuits.csv`, exactly as sec 3.3 specifies for phase 1
-     ("fixed per-circuit overtaking parameter"; fitting it from data is
-     phase 2).
+     grid. Post-quali mode: use the round's real grid instead (`inputs.grid`,
+     identical across trials). Either way, apply a track-specific
+     overtaking-difficulty parameter to turn (grid, race pace) into a
+     finishing order -- a fixed per-circuit value from `data/circuits.csv`,
+     exactly as sec 3.3 specifies for phase 1 ("fixed per-circuit overtaking
+     parameter"; fitting it from data is phase 2).
   4. Draw DNFs (team-level mechanical hazard only, sec 3.2 first cut).
   5. Order survivors by effective pace, convert to points via the points
      table.
@@ -62,6 +63,7 @@ class RaceTrialInputs:
     quali_noise_sigma: np.ndarray    # (n_trials,)
     dnf_prob: np.ndarray             # (n_trials, n_drivers) -- mechanical DNF probability
     overtaking_difficulty: float     # circuits.csv value, 1 (hard) .. ~5 (easy)
+    grid: np.ndarray = None          # (n_drivers,) 1-indexed real grid, post-quali mode only
 
 
 def simulate_positions(inputs: RaceTrialInputs, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
@@ -72,10 +74,14 @@ def simulate_positions(inputs: RaceTrialInputs, rng: np.random.Generator) -> tup
     """
     n_trials, n_drivers = inputs.race_pace.shape
 
-    # --- quali: pace + noise -> grid order ---
-    quali_eps = rng.normal(0.0, 1.0, size=(n_trials, n_drivers)) * inputs.quali_noise_sigma[:, None]
-    quali_time = inputs.quali_pace + quali_eps
-    grid = np.argsort(np.argsort(quali_time, axis=1), axis=1) + 1  # 1-indexed grid position
+    # --- grid: post-quali mode uses the round's real starting order, identical
+    # in every trial (it is an observed fact by then, not a quantity with a
+    # posterior); pre-weekend mode simulates quali from the quali equation ---
+    if inputs.grid is not None:
+        grid = np.tile(np.asarray(inputs.grid, dtype=int), (n_trials, 1))
+    else:
+        quali_eps = rng.normal(0.0, 1.0, size=(n_trials, n_drivers)) * inputs.quali_noise_sigma[:, None]
+        grid = np.argsort(np.argsort(inputs.quali_pace + quali_eps, axis=1), axis=1) + 1
 
     # --- race: pace + Student-t noise ---
     # Student-t via normal / sqrt(chi2/nu), vectorised per trial (nu, sigma shared within a trial).
@@ -113,7 +119,7 @@ def summarize_trials(positions: np.ndarray, dnf: np.ndarray, driver_ids: list, t
     rows = []
     for i, driver in enumerate(driver_ids):
         pos_i = positions[:, i]
-        rows.append({
+        row = {
             "driver": driver,
             "team": teams[i] if teams is not None else None,
             "p_win": float(np.mean(pos_i == 1)),
@@ -124,5 +130,9 @@ def summarize_trials(positions: np.ndarray, dnf: np.ndarray, driver_ids: list, t
             "p10_finish": float(np.percentile(pos_i, 10)),
             "p50_finish": float(np.percentile(pos_i, 50)),
             "p90_finish": float(np.percentile(pos_i, 90)),
-        })
+        }
+        # sec 6: "plus the full position distribution as a wide block"
+        for pos in range(1, n_drivers + 1):
+            row[f"p_pos_{pos}"] = float(np.mean(pos_i == pos))
+        rows.append(row)
     return pd.DataFrame(rows).sort_values("exp_points", ascending=False).reset_index(drop=True)

@@ -7,10 +7,11 @@ from sim.race import RaceTrialInputs, simulate_positions, summarize_trials, load
 
 
 def _make_inputs(race_pace, quali_pace, overtaking_difficulty, n_trials=4000,
-                  dnf_prob=None, race_sigma=0.3, quali_sigma=0.2):
+                  dnf_prob=None, race_sigma=0.3, quali_sigma=0.2, grid=None):
     n_drivers = len(race_pace)
     dnf_prob = np.zeros((n_trials, n_drivers)) if dnf_prob is None else dnf_prob
     return RaceTrialInputs(
+        grid=grid,
         driver_ids=[f"d{i}" for i in range(n_drivers)],
         race_pace=np.tile(race_pace, (n_trials, 1)),
         race_noise_nu=np.full(n_trials, 10.0),
@@ -83,6 +84,43 @@ class TestSimulatePositions:
             assert sorted(row) == list(range(1, 6))
 
 
+class TestPostQualiRealGrid:
+    """Spec sec 3.3 step 3: post-quali mode uses the real grid, pre-weekend
+    mode simulates one from the quali equation."""
+
+    def test_real_grid_is_used_verbatim(self):
+        # quali pace says driver 0 is fastest; the real grid puts them last. At
+        # Monaco-like difficulty the grid dominates, so the pole-sitter wins...
+        inputs = _make_inputs(race_pace=[0.0, 0.5, 1.0], quali_pace=[0.0, 0.5, 1.0],
+                               overtaking_difficulty=1.0, race_sigma=0.02, grid=np.array([3, 1, 2]))
+        positions, _ = simulate_positions(inputs, np.random.default_rng(0))
+        assert (positions[:, 1] == 1).mean() > 0.9
+        # ...and with no race noise every trial resolves to that same grid,
+        # because after quali the grid is an observed fact, not a draw
+        inputs = _make_inputs(race_pace=[0.0] * 3, quali_pace=[0.0, 0.5, 1.0], n_trials=200,
+                               overtaking_difficulty=1.0, race_sigma=0.0, grid=np.array([3, 2, 1]))
+        positions, _ = simulate_positions(inputs, np.random.default_rng(0))
+        assert (positions == np.array([3, 2, 1])).all()
+
+    def test_modes_differ_when_the_real_grid_differs_from_the_simulated_one(self):
+        """The acceptance criterion for slice-1: given a real grid that the
+        quali equation would not have produced, the two modes must give
+        different finishing distributions."""
+        pace = [0.0, 0.3, 0.6, 0.9]
+        kwargs = dict(race_pace=pace, quali_pace=pace, overtaking_difficulty=1.0, race_sigma=0.05)
+        pre = simulate_positions(_make_inputs(**kwargs), np.random.default_rng(0))[0]
+        # a real grid reversed vs what the quali equation would have produced
+        post = simulate_positions(_make_inputs(grid=np.array([4, 3, 2, 1]), **kwargs),
+                                   np.random.default_rng(0))[0]
+
+        pre_win = (pre[:, 0] == 1).mean()
+        post_win = (post[:, 0] == 1).mean()
+        assert pre_win > 0.8      # pre-weekend: the fastest car starts near the front
+        assert post_win < 0.2     # post-quali: it is really starting last
+        # and pre-weekend really did simulate a grid rather than fix one
+        assert len(np.unique(pre, axis=0)) > 1
+
+
 class TestSummarizeTrials:
     def test_probabilities_sum_sensibly(self):
         rng = np.random.default_rng(0)
@@ -91,6 +129,9 @@ class TestSummarizeTrials:
         table = load_points_table()
         df = summarize_trials(positions, dnf, inputs.driver_ids, ["T1", "T2", "T3"], table)
         assert abs(df["p_win"].sum() - 1.0) < 1e-9
+        # sec 6's wide position-distribution block: one column per position
+        # (missing columns raise KeyError), each driver's row summing to 1
+        assert np.allclose(df[[f"p_pos_{p}" for p in range(1, 4)]].sum(axis=1), 1.0)
         assert (df["p_podium"] <= 1.0).all() and (df["p_podium"] >= 0.0).all()
         assert (df["exp_points"] >= 0).all()
 
