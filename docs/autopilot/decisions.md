@@ -40,3 +40,33 @@ Question:    §6 says quali "is added as an observation" but does not say what h
 Chosen:      Hold out the round's race observations, keep its quali, and keep the round on the random-walk axis (`build_pace_data(hold_out_race_round=...)`).
 Rejected:    Fitting through round N−1 and treating quali as an extra round — that drops the round's own `car[team, round]` node, so the forecast would come off a stale round. Letting the race rows in is leakage and was never an option.
 Blast radius: One new optional argument to `build_pace_data`; every existing caller's behaviour is unchanged.
+
+## 2026-09-27 — slice-2, PR #6
+Question:    §3.4 says the sprint has its "own points table" but `data/points_tables.csv` held a single unlabelled block, and the sprint table is not one table — 2021 awarded 3/2/1 to the top three, 2022 onward 8..1 to the top eight.
+Chosen:      Widened the CSV to `event,season_from,season_to,position,points` and keyed lookups on both. `load_points_table(event="grand_prix", season=None)` keeps the old call site working and defaults to the most recent block, which is what a current-season forecast wants.
+Rejected:    A second file (`sprint_points.csv`) — §5 calls these "the points tables", one hand-maintained thing, and two files drift apart. Also rejected: a single season-blind sprint table, which would quietly misprice every 2021 sprint by a factor of ~2.7 in the backtest and give no error while doing it.
+Blast radius: `data/points_tables.csv` and `load_points_table` in `src/sim/race.py`. Both existing callers (`cli.forecast_weekend`, `backtest.forecast_round`) pass no arguments and get exactly the table they got before.
+
+## 2026-09-27 — slice-2, PR #6
+Question:    §3.4 says a sprint is "an extra shorter race event". It does not say what "shorter" changes in the resolver.
+Chosen:      One constant, `SPRINT_DISTANCE_RATIO = 100/305`, scaling exactly two things: `dnf_prob` (a third of the running time is a third of the exposure to a failure) and `overtaking_difficulty` (which makes the grid-lock penalty per slot 1/ratio larger — the same circuit is harder to pass on with a third of the laps). Race noise is left alone.
+Rejected:    Scaling race noise too. Per-lap noise would average down over distance and event-level shocks (a safety car, a bad start) would not; §3.4 does not say which dominates, so scaling it either way is a modelling claim the data has not been asked about. Also rejected: a free-standing set of sprint-only parameters, which is three more numbers nobody has fitted.
+Blast radius: `SPRINT_DISTANCE_RATIO` and `sprint_inputs_from` in `src/sim/race.py`. Sprint-only: nothing reads either on a non-sprint round, so no Grand Prix forecast can move.
+
+## 2026-09-27 — slice-2, PR #6
+Question:    Both events are resolved from one RNG. The spec does not say in which order.
+Chosen:      The Grand Prix draws first, then the sprint — the reverse of the real weekend. Nothing carries between the two events, so the order is free, and taking Sunday's draws first means adding sprint support cannot move any existing Grand Prix forecast by a single trial.
+Rejected:    Sprint first, matching the calendar. It reads better and buys nothing: it would shift every sprint round's Grand Prix numbers off their pre-slice values for no modelling reason, and make "rounds without a sprint are unaffected" the weaker claim that only *non-sprint* rounds are unaffected.
+Blast radius: Two statements in `simulate_weekend`. Verified end to end: the round-2 Grand Prix forecast is byte-identical with the sprint rows present and with them removed.
+
+## 2026-09-27 — slice-2, PR #6
+Question:    §6 fixes `race_forecast.csv`'s columns. It does not say where a sprint forecast goes.
+Chosen:      A sibling `sprint_forecast_<season>_<round>.csv`, same columns, written only on sprint rounds. `race_forecast.csv` keeps exactly the §6 shape.
+Rejected:    Sprint columns bolted onto `race_forecast.csv` — it breaks §6's stated column list for one round type in three, and leaves `exp_points` ambiguous between "Sunday" and "the weekend". Also rejected: one long file with an `event` column, which would change the row count of an existing output.
+Blast radius: One extra `to_csv` in `cmd_race`. Readers of `race_forecast.csv` see no change.
+
+## 2026-09-27 — slice-2, PR #6
+Question:    Should sprint rows (`session_type == "S"`) also feed the pace model as extra race observations?
+Chosen:      No. `build_pace_data` still reads `R` and `Q` only; sprint rows are used for the sprint calendar and the sprint grid, not as pace data.
+Rejected:    Adding them as observations. A sprint's clean-air pace is a different quantity (no pit stop, one tyre compound, a third of the fuel burn), so it needs its own offset and noise scale in the likelihood, which is a pace-model change nothing in slice-2's criteria asks for, and it would change every Grand Prix forecast on every sprint round. Worth doing deliberately, with the backtest available to say whether it helped.
+Blast radius: None — this is the existing behaviour, recorded because a reviewer will otherwise wonder whether it was considered.
