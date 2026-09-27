@@ -5,8 +5,8 @@ here since this module resolves its own sibling imports at call time; run
 from the repo root).
 
 Implemented: `fit`, `race --mode pre`, `race --mode post-quali` (Phase 2,
-spec sec 6 conditioning), and `backtest` (the sec 7 evaluation). `season` is
-Phase 3.
+spec sec 6 conditioning), sprint weekends (sec 3.4), and `backtest` (the
+sec 7 evaluation). `season` is Phase 3.
 """
 
 from __future__ import annotations
@@ -163,10 +163,23 @@ def _entrants_for_round(driver_rounds: pd.DataFrame, season: int, round_: int) -
     return entrants.dropna()
 
 
+def _round_has_sprint(driver_rounds: pd.DataFrame, season: int, round_: int) -> bool:
+    """Whether the round is a sprint weekend, read from the data rather than
+    from a hand-kept list of sprint rounds: `collect_v2` writes `session_type
+    == "S"` rows exactly when the FastF1 event format says sprint, so the
+    presence of those rows *is* the sprint calendar."""
+    rows = driver_rounds[(driver_rounds["season"] == season)
+                          & (driver_rounds["round"] == round_)
+                          & (driver_rounds["session_type"] == "S")]
+    return not rows.empty
+
+
 def _real_grid_for_round(driver_rounds: pd.DataFrame, season: int, round_: int,
-                          driver_ids: list) -> np.ndarray:
+                          driver_ids: list, session_type: str = "R") -> np.ndarray:
     """The round's actual starting grid as 1-indexed positions aligned to
     `driver_ids` (spec sec 3.3 step 3, "post-quali mode uses the real grid").
+    `session_type="S"` reads the sprint's own grid instead of the race's --
+    from 2023 the two are set by separate sessions and routinely differ.
 
     Read from `grid_position` on the round's race rows -- FastF1's
     `GridPosition`, which already reflects penalties, so it is the grid the
@@ -177,16 +190,16 @@ def _real_grid_for_round(driver_rounds: pd.DataFrame, season: int, round_: int,
     degrading to a simulated one would misreport which mode produced the
     forecast."""
     rows = driver_rounds[(driver_rounds["season"] == season) & (driver_rounds["round"] == round_)
-                          & (driver_rounds["session_type"] == "R")]
+                          & (driver_rounds["session_type"] == session_type)]
     if rows.empty or "grid_position" not in rows.columns:
-        raise ValueError(f"No race rows with a grid for {season}:{round_}; "
+        raise ValueError(f"No {session_type} rows with a grid for {season}:{round_}; "
                           "--mode post-quali needs a completed quali session.")
 
     by_driver = dict(zip(rows["abbreviation"], rows["grid_position"]))
     values = pd.Series([by_driver.get(d) for d in driver_ids], dtype="float64")
     values = values.where(values > 0)  # 0 = pit-lane start, NaN = no recorded start
     if values.isna().all():
-        raise ValueError(f"No usable grid_position values for {season}:{round_}; "
+        raise ValueError(f"No usable {session_type} grid_position values for {season}:{round_}; "
                           "--mode post-quali needs a completed quali session.")
     return values.rank(method="first", na_option="bottom").to_numpy(dtype=int)
 
@@ -202,16 +215,21 @@ def _circuit_info(circuits: pd.DataFrame, driver_rounds: pd.DataFrame, season: i
     return circuit_type, overtaking
 
 
-def forecast_race(idata, data, reliability_data, driver_rounds: pd.DataFrame, circuits: pd.DataFrame,
-                   season: int, round_: int, n_trials: int = 50_000, seed: int = 0,
-                   mode: str = "pre") -> pd.DataFrame:
-    """Forecast one round. `mode="pre"` simulates quali for the grid,
-    `mode="post-quali"` uses the round's real one (spec sec 3.3 step 3); the
-    grid is resolved here, not passed in, so it cannot drift out of alignment
-    with the entrant ordering built below."""
+def forecast_weekend(idata, data, reliability_data, driver_rounds: pd.DataFrame, circuits: pd.DataFrame,
+                      season: int, round_: int, n_trials: int = 50_000, seed: int = 0,
+                      mode: str = "pre") -> tuple[pd.DataFrame, pd.DataFrame | None]:
+    """Forecast one round's events: `(grand_prix, sprint_or_None)`.
+
+    `mode="pre"` simulates quali for the grid, `mode="post-quali"` uses the
+    round's real one (spec sec 3.3 step 3); the grid is resolved here, not
+    passed in, so it cannot drift out of alignment with the entrant ordering
+    built below. On a sprint weekend (sec 3.4) the sprint is resolved from
+    the same per-trial pace draw and scored off the sprint points table; the
+    second element is None on every other round.
+    """
     from model.pace import posterior_pace_draws, posterior_quali_draws
     from model.reliability import sample_mechanical_dnf_prob
-    from sim.race import RaceTrialInputs, simulate_positions, summarize_trials, load_points_table
+    from sim.race import RaceTrialInputs, simulate_weekend, summarize_trials, load_points_table
 
     rng = np.random.default_rng(seed)
     entrants = _entrants_for_round(driver_rounds, season, round_)
@@ -222,6 +240,19 @@ def forecast_race(idata, data, reliability_data, driver_rounds: pd.DataFrame, ci
     teams = entrants["team"].tolist()
     n_drivers = len(driver_ids)
     grid = _real_grid_for_round(driver_rounds, season, round_, driver_ids) if mode == "post-quali" else None
+
+    has_sprint = _round_has_sprint(driver_rounds, season, round_)
+    # Post-quali, the sprint has a real starting order too -- its own, from
+    # sprint quali. A sprint round whose S rows carry no usable grid falls
+    # back to simulating it from the shared quali pace rather than failing
+    # the whole weekend: the Grand Prix forecast does not depend on it.
+    sprint_grid = None
+    if has_sprint and mode == "post-quali":
+        try:
+            sprint_grid = _real_grid_for_round(driver_rounds, season, round_, driver_ids, session_type="S")
+        except ValueError as exc:
+            print(f"  WARNING: no real sprint grid for {season}:{round_} ({exc}); simulating it.",
+                  file=sys.stderr)
 
     n_posterior = idata.posterior.sizes["chain"] * idata.posterior.sizes["draw"]
     draw_idx = rng.integers(0, n_posterior, size=n_trials)
@@ -237,8 +268,11 @@ def forecast_race(idata, data, reliability_data, driver_rounds: pd.DataFrame, ci
     # one mechanical-DNF draw per team per trial, shared across its two cars
     # (model.reliability.sample_mechanical_dnf_prob's documented contract) --
     # cached per team so teammates don't each get an independent draw.
+    # `sorted`, not bare `set`: set iteration order over strings varies with
+    # PYTHONHASHSEED, so an unsorted loop draws from `rng` in a different
+    # order in every process and --seed stops reproducing a forecast.
     team_dnf_prob = {}
-    for team in set(teams):
+    for team in sorted(set(teams)):
         team_dnf_prob[team] = sample_mechanical_dnf_prob(reliability_data, team, season, n_trials, rng)
 
     for i, (driver, team) in enumerate(zip(driver_ids, teams)):
@@ -255,9 +289,21 @@ def forecast_race(idata, data, reliability_data, driver_rounds: pd.DataFrame, ci
         dnf_prob=dnf_prob, overtaking_difficulty=overtaking_difficulty,
         grid=grid,
     )
-    positions, dnf = simulate_positions(inputs, rng)
-    points_table = load_points_table()
-    return summarize_trials(positions, dnf, driver_ids, teams, points_table)
+    outcome = simulate_weekend(inputs, rng, has_sprint=has_sprint, sprint_grid=sprint_grid)
+    grand_prix = summarize_trials(outcome.positions, outcome.dnf, driver_ids, teams,
+                                   load_points_table("grand_prix", season))
+    if not outcome.has_sprint:
+        return grand_prix, None
+    sprint = summarize_trials(outcome.sprint_positions, outcome.sprint_dnf, driver_ids, teams,
+                               load_points_table("sprint", season))
+    return grand_prix, sprint
+
+
+def forecast_race(*args, **kwargs) -> pd.DataFrame:
+    """The Grand Prix forecast alone -- `forecast_weekend`'s first element.
+    Kept because sec 6's `race_forecast.csv` is the Grand Prix table and
+    nothing about a sprint round changes its shape."""
+    return forecast_weekend(*args, **kwargs)[0]
 
 
 def cmd_race(args):
@@ -292,14 +338,24 @@ def cmd_race(args):
                   "a late-season miss is a real regression, not an accepted exception.",
                   file=sys.stderr)
 
-    forecast = forecast_race(idata, data, reliability_data, driver_rounds, circuits,
-                              args.season, args.round, n_trials=args.n_trials, seed=args.seed,
-                              mode=args.mode)
+    forecast, sprint = forecast_weekend(idata, data, reliability_data, driver_rounds, circuits,
+                                         args.season, args.round, n_trials=args.n_trials,
+                                         seed=args.seed, mode=args.mode)
 
     out_path = os.path.join(out_dir, f"race_forecast_{args.season}_{args.round}.csv")
     forecast.to_csv(out_path, index=False)
     print(forecast.to_string(index=False))
     print(f"Saved -> {out_path}")
+
+    # A sprint is a second event, not extra columns on the first: sec 6 fixes
+    # race_forecast.csv's columns as the Grand Prix's, and a reader summing
+    # exp_points over a weekend should have to say which event it means.
+    if sprint is not None:
+        sprint_path = os.path.join(out_dir, f"sprint_forecast_{args.season}_{args.round}.csv")
+        sprint.to_csv(sprint_path, index=False)
+        print(f"\nSprint (spec sec 3.4, shares the weekend pace draw):")
+        print(sprint.to_string(index=False))
+        print(f"Saved -> {sprint_path}")
 
 
 # ---------------------------------------------------------------------------

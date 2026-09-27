@@ -10,6 +10,7 @@ import pytest
 
 from cli import (
     build_parser, _parse_through, _entrants_for_round, _circuit_info, _real_grid_for_round,
+    _round_has_sprint,
 )
 
 
@@ -118,3 +119,42 @@ class TestRealGridLookup:
                          (_toy_driver_rounds(), 99)]:
             with pytest.raises(ValueError):
                 _real_grid_for_round(df, 2023, rnd, ["d1", "d2", "d3"])
+
+
+def _toy_sprint_weekend(race_grid=(1, 2, 3), sprint_grid=(3, 2, 1)):
+    """A sprint round as collect_v2 writes it: Q rows, an S block, an R
+    block, with the two races starting from their own grids (which from 2023
+    are set by separate sessions and routinely differ)."""
+    rows = []
+    for session, grids in [("S", sprint_grid), ("R", race_grid)]:
+        for (team, drv), gp in zip([("Team A", "d1"), ("Team A", "d2"), ("Team B", "d3")], grids):
+            rows.append(dict(season=2023, round=4, event_name="Azerbaijan Grand Prix",
+                              circuit_type="street", session_type=session,
+                              abbreviation=drv, team=team, grid_position=gp))
+    return pd.DataFrame(rows)
+
+
+class TestSprintRoundDetection:
+    """Spec sec 3.4: the sprint is an extra event inside the round, and
+    whether a round has one is read off the collected data."""
+
+    def test_round_with_sprint_rows_is_a_sprint_weekend(self):
+        assert _round_has_sprint(_toy_sprint_weekend(), 2023, 4) is True
+
+    def test_round_without_sprint_rows_is_not(self):
+        assert _round_has_sprint(_toy_driver_rounds(), 2023, 1) is False
+
+    def test_missing_round_is_not_a_sprint_weekend(self):
+        assert _round_has_sprint(_toy_sprint_weekend(), 2023, 99) is False
+
+
+class TestSprintGridLookup:
+    def test_sprint_grid_is_read_from_the_sprint_rows_not_the_race_rows(self):
+        df = _toy_sprint_weekend(race_grid=(1, 2, 3), sprint_grid=(3, 2, 1))
+        drivers = ["d1", "d2", "d3"]
+        assert list(_real_grid_for_round(df, 2023, 4, drivers, session_type="S")) == [3, 2, 1]
+        assert list(_real_grid_for_round(df, 2023, 4, drivers)) == [1, 2, 3]
+
+    def test_non_sprint_round_has_no_sprint_grid_to_read(self):
+        with pytest.raises(ValueError):
+            _real_grid_for_round(_toy_driver_rounds(), 2023, 1, ["d1", "d2", "d3"], session_type="S")
