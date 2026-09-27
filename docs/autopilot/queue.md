@@ -67,7 +67,7 @@ mode (that is Phase 2's gate, slice 6), weather, sprints.
 
 ## slice-2 — Sprint events
 
-Status: in-review — PR #7, opened 2026-09-27.
+Status: merged — PR #7 merged by the review routine 2026-09-27 (`2edcf87`).
 Spec: `docs/grid-prophet-v2-spec.md` §3.4 (sprints as an extra event), §3.3
 (step 5, points tables), §8 Phase 2
 
