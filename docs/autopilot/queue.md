@@ -20,10 +20,14 @@ Terminal: `held` (owner vetoed), `blocked` (review rejected).
 
 ## slice-1 — Quali conditioning and `gp race --mode post-quali`
 
-Status: blocked — review rejected PR #5 on the first acceptance criterion.
-Needs an owner decision, not a rebuild: `data/driver_rounds.csv` is gitignored,
-so "runs end to end on a completed round" cannot be checked by any cloud
-routine. See the review on #5 for the three ways out.
+Status: in-review — owner unblock 2026-09-26 (option 1 from the review on #5).
+`data/driver_rounds_fixture.csv` is now committed: 80 real rows (2024 R1–R2,
+Q + R). Copy it to `data/driver_rounds.csv` to check criterion 1. The owner ran
+`gp fit --through 2024:1` then `gp race --season 2024 --round 2 --mode
+post-quali` against PR #5's head `b19c544` with it: both exited 0; evidence is
+in the comment on #5. Do not rebuild slice-1. PR #5 stands as is. The fixture
+has no sprint weekend; slice-2 may need true sprint values hard-coded in its
+test.
 Spec: `docs/grid-prophet-v2-spec.md` §3.3 (step 3), §6 (post-quali conditioning
 and the fallback protocol), §8 Phase 2
 
