@@ -70,3 +70,21 @@ Question:    Should sprint rows (`session_type == "S"`) also feed the pace model
 Chosen:      No. `build_pace_data` still reads `R` and `Q` only; sprint rows are used for the sprint calendar and the sprint grid, not as pace data.
 Rejected:    Adding them as observations. A sprint's clean-air pace is a different quantity (no pit stop, one tyre compound, a third of the fuel burn), so it needs its own offset and noise scale in the likelihood, which is a pace-model change nothing in slice-2's criteria asks for, and it would change every Grand Prix forecast on every sprint round. Worth doing deliberately, with the backtest available to say whether it helped.
 Blast radius: None — this is the existing behaviour, recorded because a reviewer will otherwise wonder whether it was considered.
+
+## 2026-09-29 — slice-3, PR #8
+Question:    §3.2 widens the mechanical prior in rule-change years "and shrinking as the season runs", without saying what shrinks.
+Chosen:      The *widening* shrinks. Mean and concentration decay linearly from the rule-change prior to the stable one over the first 8 completed rounds of that season (`RULE_CHANGE_WIDENING_DECAY_ROUNDS`), using the round count in the fit window.
+Rejected:    Reading it as the posterior naturally tightening as data accumulates — true of every Beta-Binomial ever written, so the clause would say nothing, and it ignores "elevated **early-season** failures", the only words in the sentence carrying information.
+Blast radius: `_mechanical_prior` and one constant in `src/model/reliability.py`. Changes how much a rule-change prior inflates a late-season team estimate; never a label, a count, or a data file.
+
+## 2026-09-29 — slice-3, PR #8
+Question:    §3.2 asserts "midfield starts crash more than front-row starts" and stops: no functional form, and no statement of which grid a pre-weekend forecast is supposed to read.
+Chosen:      Three bands (1–4 / 5–14 / 15+) whose prior multipliers encode that ordering, shrunk toward pooled data by 150 pseudo-starts per band and normalised to a start-weighted mean of 1.0 so the bands redistribute the pooled incident rate rather than inflating it. The slot is the real grid post-quali and the ranking of the posterior-mean quali pace pre-weekend.
+Rejected:    A continuous curve (implies a shape nothing has fitted); a fixed multiplier that never learns (an assertion, not an estimate); and moving the DNF draw inside `sim.race` so each trial's simulated grid feeds its own hazard — correct in principle, but it reworks the resolver for a second-order effect on a multiplier.
+Blast radius: `GRID_BANDS`, `PRIOR_GRID_MULTIPLIER`, `_grid_multipliers` and `cli._hazard_grid`. Reversible to a constant multiplier by deleting `_grid_multipliers`.
+
+## 2026-09-29 — slice-3, PR #8
+Question:    §3.2 says post-2023 rows are "a mixture rather than a clean label" but gives no weights, and says "hazard per driver" without a season index.
+Chosen:      A `needs_review` status that still names a system (Suspension, Puncture) leans 0.7 toward its mapped category; a causeless one ("Retired") splits on the observable era's own clean mechanical:incident ratio, or 0.5/0.5 when the window holds no clean labels. Driver incident counts pool across the whole fit window.
+Rejected:    Dropping flagged rows — it discards most of 2023+ and biases the hazard down exactly where cars are least reliable. Hard 0/1 labels from the map's category — that is manufacturing labels, which §3.2 forbids. Per-driver-season pooling — ~24 starts is far too thin for a crash propensity.
+Blast radius: `FLAGGED_LABEL_LEAN`, `channel_weights` and the `driver_stats` groupby. The weights are two lines; changing them changes counts, not structure.

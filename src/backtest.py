@@ -178,7 +178,9 @@ def forecast_race_challenger(challenger_model, reliability_data, driver_rounds: 
     Since grid and race pace share the same per-trial draw, the grid-lock
     term this induces doesn't reorder anything, so it is harmless."""
     from model.challenger import sample_pace
-    from model.reliability import sample_mechanical_dnf_prob
+    from model.reliability import (
+        combined_dnf_prob, sample_incident_dnf_prob, sample_mechanical_dnf_prob,
+    )
     from sim.race import RaceTrialInputs, simulate_positions, summarize_trials, load_points_table
     from cli import _entrants_for_round, _circuit_info
 
@@ -199,21 +201,31 @@ def forecast_race_challenger(challenger_model, reliability_data, driver_rounds: 
     n_drivers = len(driver_ids)
 
     race_pace = np.zeros((n_trials, n_drivers))
-    dnf_prob = np.zeros((n_trials, n_drivers))
+    mech_prob = np.zeros((n_trials, n_drivers))
+    incident_prob = np.zeros((n_trials, n_drivers))
     team_dnf_cache = {team: sample_mechanical_dnf_prob(reliability_data, team, season, n_trials, rng)
-                       for team in set(teams)}
+                       for team in sorted(set(teams))}
 
     for i, (driver, team) in enumerate(zip(driver_ids, teams)):
         trp = float(team_recent.get(team, field_mean))
         drp = float(driver_recent.get(driver, field_mean))
         race_pace[:, i] = sample_pace(challenger_model, team, driver, circuit_type, trp, drp, n_trials, rng)
-        dnf_prob[:, i] = team_dnf_cache[team]
+        mech_prob[:, i] = team_dnf_cache[team]
+
+    # Both channels here too, so "same reliability draws" stays true of the
+    # comparison. The challenger has no quali equation, so its own race-pace
+    # ranking supplies the grid slot the incident hazard needs.
+    hazard_grid = np.argsort(np.argsort(race_pace.mean(axis=0))) + 1
+    for i, driver in enumerate(driver_ids):
+        incident_prob[:, i] = sample_incident_dnf_prob(reliability_data, driver,
+                                                       hazard_grid[i], n_trials, rng)
 
     inputs = RaceTrialInputs(
         driver_ids=driver_ids, race_pace=race_pace,
         race_noise_nu=np.full(n_trials, 8.0), race_noise_sigma=np.zeros(n_trials),
         quali_pace=race_pace.copy(), quali_noise_sigma=np.zeros(n_trials),
-        dnf_prob=dnf_prob, overtaking_difficulty=overtaking_difficulty,
+        dnf_prob=combined_dnf_prob(mech_prob, incident_prob),
+        overtaking_difficulty=overtaking_difficulty,
     )
     positions, dnf = simulate_positions(inputs, rng)
     points_table = load_points_table()

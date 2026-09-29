@@ -9,8 +9,8 @@ import pandas as pd
 import pytest
 
 from cli import (
-    build_parser, _parse_through, _entrants_for_round, _circuit_info, _real_grid_for_round,
-    _round_has_sprint,
+    build_parser, _parse_through, _entrants_for_round, _circuit_info, _hazard_grid,
+    _real_grid_for_round, _round_has_sprint,
 )
 
 
@@ -158,3 +158,18 @@ class TestSprintGridLookup:
     def test_non_sprint_round_has_no_sprint_grid_to_read(self):
         with pytest.raises(ValueError):
             _real_grid_for_round(_toy_driver_rounds(), 2023, 1, ["d1", "d2", "d3"], session_type="S")
+
+
+class TestHazardGrid:
+    """The grid slot sec 3.2's incident hazard is conditioned on. Pre-weekend
+    there is no grid yet, so the posterior-mean quali pace has to stand in --
+    and the rank direction is the easy thing to invert (quali pace is a gap to
+    the session best, so *lower* is further forward)."""
+
+    def test_real_grid_is_used_verbatim_when_given(self):
+        assert list(_hazard_grid(np.array([3, 1, 2]), np.zeros((5, 3)))) == [3.0, 1.0, 2.0]
+
+    def test_pre_weekend_grid_ranks_the_fastest_car_to_pole(self):
+        quali_pace = np.array([[0.9, 0.0, 0.4], [1.1, 0.0, 0.6]])
+        assert list(_hazard_grid(None, quali_pace)) == [3.0, 1.0, 2.0]
+        assert sorted(_hazard_grid(None, np.array([[0.3, 0.1, 0.2, 0.4]]))) == [1.0, 2.0, 3.0, 4.0]
