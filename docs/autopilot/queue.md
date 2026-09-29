@@ -90,7 +90,40 @@ does not apply.
 
 ## slice-3 — Reliability split: mechanical vs incident
 
-Status: in-review — PR #8 (`auto/grid-prophet-slice-3-reliability-split`)
+Status: merged — PR #8 merged by the review routine 2026-09-29 (`99f0151`).
+
+All five criteria were verified against the diff rather than against the PR
+body, and the PR's mutation claims were re-derived from the test source rather
+than taken on trust. CI (`test`) was green on `d1e79f2`; the diff is 598 lines,
+inside the 600-line review cap. The data gap is honored on the production path
+and not only in tests: `src/validate_driver_rounds.py` confirms the real
+`driver_rounds.csv` schema carries the `status` column that `channel_weights`
+needs, so the flagged-row logic does not silently no-op outside the fixtures.
+
+Two things carried forward, neither blocking:
+
+- **The causeless-mixture split can still hand a flagged row a hard label.**
+  `channel_weights` splits a causeless `needs_review` row ("Retired") on the
+  observable era's clean mechanical:incident ratio. When a fit window's clean
+  labels all sit in one channel that ratio is 0.0 or 1.0, so the flagged row
+  books weight 1.0 to a single channel — a clean label in all but the
+  bookkeeping. This is live in the PR's own
+  `test_build_makes_the_mixture_countable`, where the single "Retired" row lands
+  at `w_mechanical = 1.0`. Harmless on the full 2018–2026 window, which has
+  hundreds of clean labels of both kinds; reachable through the backtest's early
+  `through_season` / `through_round` cutoffs. Clamping the ratio away from 0 and
+  1 is a one-line fix. The all-flagged case is already handled correctly (0.5).
+- **The first-lap spike is inert.** It lives in `lap_of_retirement_pmf`, which
+  no code path consumes. §3.2 names sprint and partial-points scoring as its
+  only consumers and neither reads it yet. Accepted because the resolver draws
+  one Bernoulli per driver per race with no lap-level simulation, so the lap
+  distribution is the only coherent home for a spike. Relatedly,
+  `sprint_inputs_from` scales the whole of `dnf_prob` by
+  `SPRINT_DISTANCE_RATIO`, so sprint incident risk is understated by roughly the
+  spike's share of the incident channel — still an improvement on the
+  pre-slice-3 sprint path, which omitted the incident channel altogether. The
+  ~45-line fix was removed to stay under the 600-line cap and is flagged in the
+  PR body for a follow-up slice.
 Spec: `docs/grid-prophet-v2-spec.md` §3.2 including its **Known data gap**
 paragraph, §8 Phase 2
 
