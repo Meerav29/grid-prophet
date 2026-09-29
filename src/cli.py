@@ -215,6 +215,18 @@ def _circuit_info(circuits: pd.DataFrame, driver_rounds: pd.DataFrame, season: i
     return circuit_type, overtaking
 
 
+def _hazard_grid(grid, quali_pace: np.ndarray) -> np.ndarray:
+    """The starting slot sec 3.2's incident hazard is conditioned on: post-quali
+    the round's real grid, pre-weekend the ranking of the posterior-mean quali
+    pace (lower gap = further forward), because the hazard is drawn before the
+    resolver simulates a grid. See docs/autopilot/decisions.md.
+    """
+    if grid is not None:
+        return np.asarray(grid, dtype=float)
+    mean_pace = np.asarray(quali_pace, dtype=float).mean(axis=0)
+    return (np.argsort(np.argsort(mean_pace)) + 1).astype(float)
+
+
 def forecast_weekend(idata, data, reliability_data, driver_rounds: pd.DataFrame, circuits: pd.DataFrame,
                       season: int, round_: int, n_trials: int = 50_000, seed: int = 0,
                       mode: str = "pre") -> tuple[pd.DataFrame, pd.DataFrame | None]:
@@ -228,7 +240,9 @@ def forecast_weekend(idata, data, reliability_data, driver_rounds: pd.DataFrame,
     second element is None on every other round.
     """
     from model.pace import posterior_pace_draws, posterior_quali_draws
-    from model.reliability import sample_mechanical_dnf_prob
+    from model.reliability import (
+        combined_dnf_prob, sample_incident_dnf_prob, sample_mechanical_dnf_prob,
+    )
     from sim.race import RaceTrialInputs, simulate_weekend, summarize_trials, load_points_table
 
     rng = np.random.default_rng(seed)
@@ -259,7 +273,8 @@ def forecast_weekend(idata, data, reliability_data, driver_rounds: pd.DataFrame,
 
     race_pace = np.zeros((n_trials, n_drivers))
     quali_pace = np.zeros((n_trials, n_drivers))
-    dnf_prob = np.zeros((n_trials, n_drivers))
+    mech_prob = np.zeros((n_trials, n_drivers))
+    incident_prob = np.zeros((n_trials, n_drivers))
 
     race_nu_all = np.asarray(idata.posterior["race_nu"]).reshape(-1)[draw_idx]
     race_sigma_all = np.asarray(idata.posterior["race_sigma"]).reshape(-1)[draw_idx]
@@ -280,13 +295,19 @@ def forecast_weekend(idata, data, reliability_data, driver_rounds: pd.DataFrame,
         qp = posterior_quali_draws(idata, data, team, driver, round_idx=round_idx)
         race_pace[:, i] = rp[draw_idx]
         quali_pace[:, i] = qp[draw_idx]
-        dnf_prob[:, i] = team_dnf_prob[team]
+        mech_prob[:, i] = team_dnf_prob[team]
+
+    hazard_grid = _hazard_grid(grid, quali_pace)
+    for i, driver in enumerate(driver_ids):
+        incident_prob[:, i] = sample_incident_dnf_prob(reliability_data, driver,
+                                                       hazard_grid[i], n_trials, rng)
 
     inputs = RaceTrialInputs(
         driver_ids=driver_ids, race_pace=race_pace,
         race_noise_nu=race_nu_all, race_noise_sigma=race_sigma_all,
         quali_pace=quali_pace, quali_noise_sigma=quali_sigma_all,
-        dnf_prob=dnf_prob, overtaking_difficulty=overtaking_difficulty,
+        dnf_prob=combined_dnf_prob(mech_prob, incident_prob),
+        overtaking_difficulty=overtaking_difficulty,
         grid=grid,
     )
     outcome = simulate_weekend(inputs, rng, has_sprint=has_sprint, sprint_grid=sprint_grid)

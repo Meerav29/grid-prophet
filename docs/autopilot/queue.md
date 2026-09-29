@@ -90,7 +90,7 @@ does not apply.
 
 ## slice-3 — Reliability split: mechanical vs incident
 
-Status: todo
+Status: in-progress
 Spec: `docs/grid-prophet-v2-spec.md` §3.2 including its **Known data gap**
 paragraph, §8 Phase 2
 
