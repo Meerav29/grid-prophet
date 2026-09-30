@@ -22,3 +22,6 @@ data/*
 !data/dnf_status_map.csv
 !data/points_tables.csv
 !data/driver_rounds_validation.md
+!data/race_results.csv
+!data/constructor_standings.csv
+!data/predictions_2026_r*.csv

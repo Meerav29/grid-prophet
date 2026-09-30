@@ -1,0 +1,124 @@
+year,constructor,total_points,standing
+2014,Mercedes,701.0,1
+2014,Red Bull,405.0,2
+2014,Williams,320.0,3
+2014,Ferrari,216.0,4
+2014,McLaren,181.0,5
+2014,Force India,155.0,6
+2014,Toro Rosso,30.0,7
+2014,Lotus F1,10.0,8
+2014,Marussia,2.0,9
+2014,Caterham,0.0,10
+2014,Sauber,0.0,11
+2015,Mercedes,703.0,1
+2015,Ferrari,428.0,2
+2015,Williams,257.0,3
+2015,Red Bull,187.0,4
+2015,Force India,136.0,5
+2015,Lotus F1,78.0,6
+2015,Toro Rosso,67.0,7
+2015,Sauber,36.0,8
+2015,McLaren,27.0,9
+2015,Manor Marussia,0.0,10
+2016,Mercedes,765.0,1
+2016,Red Bull,468.0,2
+2016,Ferrari,398.0,3
+2016,Force India,173.0,4
+2016,Williams,138.0,5
+2016,McLaren,76.0,6
+2016,Toro Rosso,63.0,7
+2016,Haas F1 Team,29.0,8
+2016,Renault,8.0,9
+2016,Sauber,2.0,10
+2016,Manor Marussia,1.0,11
+2017,Mercedes,668.0,1
+2017,Ferrari,522.0,2
+2017,Red Bull,368.0,3
+2017,Force India,187.0,4
+2017,Williams,83.0,5
+2017,Renault,57.0,6
+2017,Toro Rosso,53.0,7
+2017,Haas F1 Team,47.0,8
+2017,McLaren,30.0,9
+2017,Sauber,5.0,10
+2018,Mercedes,655.0,1
+2018,Ferrari,571.0,2
+2018,Red Bull Racing,419.0,3
+2018,Renault,122.0,4
+2018,Haas F1 Team,93.0,5
+2018,McLaren,62.0,6
+2018,Force India,59.0,7
+2018,Racing Point,52.0,8
+2018,Sauber,48.0,9
+2018,Toro Rosso,33.0,10
+2018,Williams,7.0,11
+2019,Mercedes,739.0,1
+2019,Ferrari,504.0,2
+2019,Red Bull Racing,417.0,3
+2019,McLaren,145.0,4
+2019,Renault,91.0,5
+2019,Toro Rosso,85.0,6
+2019,Racing Point,73.0,7
+2019,Alfa Romeo Racing,57.0,8
+2019,Haas F1 Team,28.0,9
+2019,Williams,1.0,10
+2020,Mercedes,573.0,1
+2020,Red Bull Racing,319.0,2
+2020,Racing Point,210.0,3
+2020,McLaren,202.0,4
+2020,Renault,181.0,5
+2020,Ferrari,131.0,6
+2020,AlphaTauri,107.0,7
+2020,Alfa Romeo Racing,8.0,8
+2020,Haas F1 Team,3.0,9
+2020,Williams,0.0,10
+2021,Mercedes,604.5,1
+2021,Red Bull Racing,578.5,2
+2021,Ferrari,322.5,3
+2021,McLaren,274.0,4
+2021,Alpine,155.0,5
+2021,AlphaTauri,142.0,6
+2021,Aston Martin,77.0,7
+2021,Williams,23.0,8
+2021,Alfa Romeo Racing,13.0,9
+2021,Haas F1 Team,0.0,10
+2022,Red Bull,724.0,1
+2022,Ferrari,519.0,2
+2022,Mercedes,495.0,3
+2022,Alpine F1 Team,170.0,4
+2022,McLaren,150.0,5
+2022,Aston Martin,55.0,6
+2022,Alfa Romeo,53.0,7
+2022,AlphaTauri,35.0,8
+2022,Haas F1 Team,33.0,9
+2022,Williams,8.0,10
+2023,Red Bull Racing,790.0,1
+2023,Mercedes,374.0,2
+2023,Ferrari,363.0,3
+2023,Aston Martin,266.0,4
+2023,McLaren,266.0,5
+2023,Alpine,110.0,6
+2023,Williams,26.0,7
+2023,AlphaTauri,22.0,8
+2023,Alfa Romeo,16.0,9
+2023,Haas F1 Team,9.0,10
+2024,McLaren,609.0,1
+2024,Ferrari,595.0,2
+2024,Red Bull Racing,537.0,3
+2024,Mercedes,433.0,4
+2024,Aston Martin,94.0,5
+2024,Alpine,63.0,6
+2024,Haas F1 Team,51.0,7
+2024,RB,40.0,8
+2024,Williams,17.0,9
+2024,Kick Sauber,4.0,10
+2025,McLaren,775.0,1
+2025,Mercedes,424.0,2
+2025,Red Bull Racing,410.0,3
+2025,Ferrari,360.0,4
+2025,Williams,124.0,5
+2025,Racing Bulls,88.0,6
+2025,Aston Martin,80.0,7
+2025,Haas F1 Team,73.0,8
+2025,Kick Sauber,70.0,9
+2025,Alpine,20.0,10
