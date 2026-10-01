@@ -4,9 +4,10 @@ Design: [2026-09-19-autopilot-design.md](../superpowers/specs/2026-09-19-autopil
 Rotation: Sun / Tue / Thu. Base branch: `auto/queue`. Window: 2026-09-20 → 09-25.
 
 These slices decompose **Phase 2** of [the v2 spec](../grid-prophet-v2-spec.md) §8.
-Phase 2 is scoped at two weeks and roughly six PRs; slices 4–6 (weather, fitting
-the overtaking parameter from data, and the Phase 2 backtest) are out of scope
-for this window.
+Phase 2 is scoped at two weeks and roughly six PRs; slices 1–3 were built in the original window. Slices 4–6 below were queued
+2026-10-01 after the queue ran dry (slice-3 carry-forwards, weather, and fitting
+the overtaking parameter from data). The Phase 2 backtest stays out of scope
+for routines.
 
 **Phase 2's real "done when" bar requires the full backtest**, which takes up to
 two hours (§7) and is not in CI. Nothing here closes Phase 2. These slices are
@@ -151,3 +152,78 @@ body and narrow the slice. Do not manufacture labels for post-2023 rows.
 Out of scope: hand-curating a supplementary retirement-cause source. That is the
 owner's call, not a routine's — flag it in the PR body if the data gap blocks
 the split.
+
+---
+
+## slice-4 — Slice-3 carry-forwards: clamp the channel ratio, route the first-lap spike into sprints
+
+Status: todo
+Spec: `docs/grid-prophet-v2-spec.md` §3.2, §3.4; follows slice-3 (PR #8)
+
+Both items were flagged by the review of PR #8 as non-blocking. Read the
+"carried forward" notes under slice-3 above for the exact locations
+(`channel_weights`, `lap_of_retirement_pmf`, `sprint_inputs_from`,
+`SPRINT_DISTANCE_RATIO`).
+
+Acceptance:
+
+- [ ] `channel_weights` clamps the clean mechanical:incident ratio away from 0
+      and 1, so a flagged (`needs_review`) row can never book weight 1.0 to one
+      channel. A test with a fit window whose clean labels are all in one
+      channel proves it; it fails without the clamp. The all-flagged case still
+      returns 0.5.
+- [ ] The first-lap spike in `lap_of_retirement_pmf` has a real consumer: sprint
+      incident risk uses the lap distribution instead of scaling all of
+      `dnf_prob` by `SPRINT_DISTANCE_RATIO`. A test shows sprint incident risk
+      differs from the old flat scaling when the spike is non-zero.
+- [ ] Race (non-sprint) outputs are unchanged; a test covers it.
+- [ ] Existing tests still pass; new behavior has tests that fail without it.
+
+Out of scope: any new data source for post-2023 retirement causes (owner's call).
+If the sprint rewrite would exceed the 600-line cap, ship the clamp alone and
+leave the sprint half as a `todo` follow-up in this file.
+
+---
+
+## slice-5 — Weather: wet races get their own noise scale
+
+Status: todo
+Spec: `docs/grid-prophet-v2-spec.md` §5 (weather row: "wet races get their own
+noise scale"), §8 Phase 2
+
+Acceptance:
+
+- [ ] The `driver_rounds.csv` schema (and `src/validate_driver_rounds.py`)
+      carries a wet/dry flag per round sourced from FastF1 weather; absence in
+      older fixtures degrades to dry, not an error.
+- [ ] The pace likelihood uses a separate noise scale for wet rounds. A test
+      shows wet and dry rounds get different scales and that dry-only data
+      reproduces pre-slice behavior exactly.
+- [ ] Wet is a recorded per-round input, not guessed; do not fabricate weather
+      for rounds with no data. Mark them unknown and treat as dry.
+- [ ] Existing tests still pass; new behavior has tests that fail without it.
+
+Out of scope: air-temperature effects, in-race weather changes, running the
+backtest.
+
+---
+
+## slice-6 — Fit the overtaking parameter from data
+
+Status: todo
+Spec: `docs/grid-prophet-v2-spec.md` §3.3 (step 3), §5 (`data/circuits.csv`
+overtaking difficulty hand rating), §8 Phase 2
+
+Acceptance:
+
+- [ ] A per-circuit overtaking parameter is estimated from observed
+      grid-to-finish position changes in `driver_rounds.csv`, shrunk toward the
+      hand rating in `data/circuits.csv` when a circuit has few observations.
+- [ ] The resolver uses the fitted value, falling back to the hand rating when
+      no fit exists; a test covers both paths.
+- [ ] A test on synthetic data with a known planted parameter recovers it
+      within a stated tolerance. A locked-order circuit (Monaco-like) gets a
+      visibly lower value than an open one (Bahrain-like).
+- [ ] Existing tests still pass; new behavior has tests that fail without it.
+
+Out of scope: the Phase 2 backtest and its log-loss comparison (owner present).
