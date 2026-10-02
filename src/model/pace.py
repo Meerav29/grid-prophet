@@ -143,8 +143,16 @@ def build_pace_data(
     driver_meta: pd.DataFrame | None = None,
     through_season: int | None = None,
     through_round: int | None = None,
+    hold_out_race_round: tuple[int, int] | None = None,
 ) -> PaceData:
     """Build index arrays for the pace model.
+
+    `hold_out_race_round`: a (season, round) whose *race* observations are
+    dropped while its quali observations are kept -- what post-quali
+    conditioning needs (spec sec 6), since Saturday's quali is a real
+    observation to condition on but letting Sunday's race into the fit would
+    be leakage. The round stays on the random-walk axis either way, so
+    `car[team, round_idx]` is still there to predict from.
 
     `through_season`/`through_round`: inclusive cutoff -- only rows with
     (season, round) <= (through_season, through_round) are included as
@@ -185,6 +193,9 @@ def build_pace_data(
 
     race = df[(df["session_type"] == "R")].copy()
     race = race[_cutoff_mask(race)]
+    if hold_out_race_round is not None:
+        ho_season, ho_round = int(hold_out_race_round[0]), int(hold_out_race_round[1])
+        race = race[~((race["season"] == ho_season) & (race["round"] == ho_round))]
     race = race.dropna(subset=["median_clean_air_lap_s", "gap_to_winner_median_clean_air_s", "team", "abbreviation"])
     race = race[race["team"].isin(team_to_idx) & race["abbreviation"].isin(driver_to_idx)]
 
