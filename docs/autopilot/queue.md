@@ -157,7 +157,7 @@ the split.
 
 ## slice-4 — Fit the overtaking parameter from data
 
-Status: todo
+Status: in-progress
 Spec: `docs/grid-prophet-v2-spec.md` §3.3 (step 3), §5 (`data/circuits.csv`
 overtaking difficulty hand rating), §8 Phase 2
 

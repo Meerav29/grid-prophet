@@ -204,15 +204,25 @@ def _real_grid_for_round(driver_rounds: pd.DataFrame, season: int, round_: int,
     return values.rank(method="first", na_option="bottom").to_numpy(dtype=int)
 
 
-def _circuit_info(circuits: pd.DataFrame, driver_rounds: pd.DataFrame, season: int, round_: int) -> tuple[str, float]:
+def _circuit_info(circuits: pd.DataFrame, driver_rounds: pd.DataFrame, season: int, round_: int,
+                   overtaking_data=None) -> tuple[str, float]:
+    """(circuit_type, overtaking_difficulty) for one round.
+
+    The overtaking parameter is the fitted per-circuit value when
+    `overtaking_data` carries one (spec sec 3.3 step 3, slice-4), and the
+    `data/circuits.csv` hand rating when it does not -- so a circuit with no
+    race history forecasts exactly as it did before the fit existed.
+    """
+    from model.overtaking import DEFAULT_DIFFICULTY, circuit_difficulty
+
     rows = driver_rounds[(driver_rounds["season"] == season) & (driver_rounds["round"] == round_)]
     if rows.empty:
-        return "mixed", 3.0
+        return "mixed", DEFAULT_DIFFICULTY
     event_name = rows.iloc[0]["event_name"]
     circuit_type = rows.iloc[0]["circuit_type"] if pd.notna(rows.iloc[0]["circuit_type"]) else "mixed"
     match = circuits[circuits["event_name"] == event_name]
-    overtaking = float(match.iloc[0]["overtaking_difficulty"]) if not match.empty else 3.0
-    return circuit_type, overtaking
+    hand_rating = float(match.iloc[0]["overtaking_difficulty"]) if not match.empty else None
+    return circuit_type, circuit_difficulty(overtaking_data, event_name, hand_rating)
 
 
 def _hazard_grid(grid, quali_pace: np.ndarray) -> np.ndarray:
@@ -229,7 +239,7 @@ def _hazard_grid(grid, quali_pace: np.ndarray) -> np.ndarray:
 
 def forecast_weekend(idata, data, reliability_data, driver_rounds: pd.DataFrame, circuits: pd.DataFrame,
                       season: int, round_: int, n_trials: int = 50_000, seed: int = 0,
-                      mode: str = "pre") -> tuple[pd.DataFrame, pd.DataFrame | None]:
+                      mode: str = "pre", overtaking_data=None) -> tuple[pd.DataFrame, pd.DataFrame | None]:
     """Forecast one round's events: `(grand_prix, sprint_or_None)`.
 
     `mode="pre"` simulates quali for the grid, `mode="post-quali"` uses the
@@ -243,11 +253,19 @@ def forecast_weekend(idata, data, reliability_data, driver_rounds: pd.DataFrame,
     from model.reliability import (
         combined_dnf_prob, sample_incident_dnf_prob, sample_mechanical_dnf_prob,
     )
+    from model.overtaking import build_overtaking_data
     from sim.race import RaceTrialInputs, simulate_weekend, summarize_trials, load_points_table
 
     rng = np.random.default_rng(seed)
     entrants = _entrants_for_round(driver_rounds, season, round_)
-    circuit_type, overtaking_difficulty = _circuit_info(circuits, driver_rounds, season, round_)
+    # Fitted off rounds strictly *before* this one: the round being forecast
+    # must never appear in its own overtaking fit, or a backtest scores the
+    # model on a parameter that already saw the answer.
+    if overtaking_data is None:
+        overtaking_data = build_overtaking_data(driver_rounds, circuits,
+                                                 before_season=season, before_round=round_)
+    circuit_type, overtaking_difficulty = _circuit_info(circuits, driver_rounds, season, round_,
+                                                         overtaking_data)
     round_idx = data.round_to_idx.get((season, round_))  # None for a genuinely future round -> use latest
 
     driver_ids = entrants["abbreviation"].tolist()
