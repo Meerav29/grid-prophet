@@ -157,7 +157,12 @@ the split.
 
 ## slice-4 — Fit the overtaking parameter from data
 
-Status: in-review — PR #10, opened 2026-10-02 against `auto/queue`.
+Status: merged — PR #10 merged by the owner 2026-10-02 (`44938bb`).
+
+The backtest has still not been run against this slice. The fit recovers a planted
+parameter and breaks no existing test, but whether it *improves* the forecast is
+unmeasured — that is Phase 2's gate, with the owner present.
+
 Spec: `docs/grid-prophet-v2-spec.md` §3.3 (step 3), §5 (`data/circuits.csv`
 overtaking difficulty hand rating), §8 Phase 2
 
