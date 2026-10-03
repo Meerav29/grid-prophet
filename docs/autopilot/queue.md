@@ -254,7 +254,7 @@ backtest.
 Status: in-review — PR #14, opened 2026-10-03.
 
 Both halves shipped; the 600-line fallback in "Out of scope" below was not
-needed (473 lines added+deleted). `CAUSELESS_RATIO_FLOOR = 0.05` clamps the
+needed — the diff stays well inside the review cap. `CAUSELESS_RATIO_FLOOR = 0.05` clamps the
 causeless split; `sprint_incident_exposure` sums the incident lap pmf over the
 sprint's lap window (0.4412 against a distance share of 0.3279), which is the
 first-lap spike's first real consumer. Three decisions recorded in
