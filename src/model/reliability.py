@@ -8,7 +8,9 @@ Phase 1's first cut was a single team-level mechanical hazard (see
   parenthetical is about *early-season* failures in 2014 and 2022.
 * **Incident / heavy damage** -- hazard per driver, scaled by a grid-position
   effect (midfield starts crash more than front-row starts), with sec 3.2's
-  first-lap spike carried by the lap-of-retirement distribution.
+  first-lap spike carried by the lap-of-retirement distribution and read back
+  out by `sprint_incident_exposure`, which is how a sprint prices the spike it
+  shares with the Grand Prix.
 
 Both are empirical-Bayes Beta-Binomials, not MCMC models: sec 3.2 says "keep it
 simple" and sec 7's budget has no room for a second sampler pass when a
@@ -79,6 +81,15 @@ FIRST_LAP_HAZARD_MULTIPLIER = 12.0
 # but not proof, so it lands mostly on that channel. One that names nothing
 # ("Retired") splits on the observable era's own mechanical:incident ratio.
 FLAGGED_LABEL_LEAN = 0.7
+# That ratio is empirical, so a fit window whose clean labels all sit in one
+# channel would hand it 0.0 or 1.0 -- weight 1.0 to a single channel, which is a
+# clean label in all but the bookkeeping, and the one thing sec 3.2's data-gap
+# paragraph forbids. Harmless on the full 2018-2026 window, reachable through
+# the backtest's early `through_season` / `through_round` cutoffs, where a
+# window holds a handful of retirements. The floor keeps both channels fed
+# without flattening a genuinely lopsided era: it binds only past a 19:1 clean
+# split, which no real window comes near.
+CAUSELESS_RATIO_FLOOR = 0.05
 
 
 @dataclass
@@ -108,7 +119,9 @@ def channel_weights(rows: pd.DataFrame, policy: pd.DataFrame | None = None) -> p
     finisher, and a non-car withdrawal (illness, DSQ, DNS), contributes 0 to
     both. The middle case is the point: a row whose `status` is flagged
     `needs_review` splits across *both* channels and so is never a clean label,
-    however confident its mapped category looks. Rows with no `status` column
+    however confident its mapped category looks, and `CAUSELESS_RATIO_FLOOR`
+    holds that true even where the window's clean labels all point one way.
+    Rows with no `status` column
     (unit fixtures, callers holding only `dnf_cause`) are taken at their mapped
     category -- there is no flag to honour there.
     """
@@ -125,7 +138,13 @@ def channel_weights(rows: pd.DataFrame, policy: pd.DataFrame | None = None) -> p
     clean_inc = int(((cause == "incident") & is_dnf & ~is_flagged).sum())
     # No observable era in the window -> an even split is the only defensible
     # mixture: it keeps the exposure in both channels without claiming a way.
-    ratio = clean_mech / (clean_mech + clean_inc) if (clean_mech + clean_inc) else 0.5
+    # With one, the era's own ratio, clamped off 0 and 1 so a one-sided window
+    # still leaves a flagged row a mixture (CAUSELESS_RATIO_FLOOR).
+    if clean_mech + clean_inc:
+        ratio = float(np.clip(clean_mech / (clean_mech + clean_inc),
+                              CAUSELESS_RATIO_FLOOR, 1.0 - CAUSELESS_RATIO_FLOOR))
+    else:
+        ratio = 0.5
 
     lean = np.where(cause == "mechanical", FLAGGED_LABEL_LEAN,
                     np.where(cause == "incident", 1.0 - FLAGGED_LABEL_LEAN, ratio))
@@ -320,3 +339,25 @@ def lap_of_retirement_pmf(channel: str, n_laps: int = NOMINAL_RACE_LAPS) -> np.n
 def first_lap_incident_share(n_laps: int = NOMINAL_RACE_LAPS) -> float:
     """Share of a driver's incident retirements that land on lap 1."""
     return float(lap_of_retirement_pmf("incident", n_laps)[0])
+
+
+def sprint_incident_exposure(distance_ratio: float,
+                              n_race_laps: int = NOMINAL_RACE_LAPS) -> float:
+    """Share of a race's incident hazard that a shorter event carries.
+
+    This is the consumer sec 3.2's lap-of-retirement distribution was written
+    for: "matters for whether they'd already scored in a sprint". A sprint runs
+    the opening `distance_ratio` of a Grand Prix's laps, and lap 1 is where
+    incidents cluster, so a sprint's incident exposure is *not* its distance
+    share -- it is the first-lap-weighted mass over that lap window, summed
+    straight off `lap_of_retirement_pmf` so the spike keeps exactly one
+    definition. At the real sprint distance (100 km of 305, 19 laps of 57) that
+    is 0.44 against a flat 0.33: a third of the laps, nearly half the risk.
+
+    Mechanical failures are flat in lap number, so that channel keeps scaling
+    with distance. Only this one needs the lap distribution.
+    """
+    if not 0 < distance_ratio <= 1:
+        raise ValueError(f"distance_ratio must be in (0, 1], got {distance_ratio}")
+    n_laps = max(int(round(distance_ratio * n_race_laps)), 1)
+    return float(lap_of_retirement_pmf("incident", n_race_laps)[:n_laps].sum())
