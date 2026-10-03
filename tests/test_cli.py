@@ -4,13 +4,16 @@ entrants / circuit metadata. The `fit`/`race`/`backtest` command bodies
 themselves invoke the probabilistic model and are covered by the backtest
 run, not by unit tests here (see model/pace.py module docstring)."""
 
+import types
+
 import numpy as np
 import pandas as pd
 import pytest
+import xarray as xr
 
 from cli import (
     build_parser, _parse_through, _entrants_for_round, _circuit_info, _hazard_grid,
-    _real_grid_for_round, _round_has_sprint,
+    _real_grid_for_round, _round_has_sprint, forecast_weekend,
 )
 
 
@@ -173,3 +176,133 @@ class TestHazardGrid:
         quali_pace = np.array([[0.9, 0.0, 0.4], [1.1, 0.0, 0.6]])
         assert list(_hazard_grid(None, quali_pace)) == [3.0, 1.0, 2.0]
         assert sorted(_hazard_grid(None, np.array([[0.3, 0.1, 0.2, 0.4]]))) == [1.0, 2.0, 3.0, 4.0]
+
+
+# --- slice-6: the sprint path is wired, not just implemented ---------------
+#
+# `sim.race.sprint_inputs_from` can only price sec 3.2's first-lap spike if
+# `forecast_weekend` hands it both reliability channels and not just their
+# fold. That wiring is two keyword arguments deep inside a function the rest of
+# this file does not exercise, so without the tests below it could be deleted
+# with the whole suite still green -- which is exactly the regression gap PR
+# #10's review flagged on slice-4's own wiring. These are the cheapest fixtures
+# that run `forecast_weekend` end to end.
+
+DRIVERS = ["d1", "d2", "d3", "d4"]
+TEAMS = ["Alpha", "Alpha", "Beta", "Beta"]
+
+
+def _sprint_weekend_rounds():
+    """Two rounds at one circuit; the second is a sprint weekend. Carries every
+    column `build_reliability_data` and `build_overtaking_data` read."""
+    rows = []
+    for rnd in (1, 2):
+        for session in ("Q", "R", "S") if rnd == 2 else ("Q", "R"):
+            for i, (drv, team) in enumerate(zip(DRIVERS, TEAMS)):
+                rows.append(dict(
+                    season=2024, round=rnd, event_name="Bahrain Grand Prix",
+                    circuit_type="mixed", session_type=session, abbreviation=drv, team=team,
+                    grid_position=float(i + 1), finish_position=float(i + 1), classified=True,
+                    status="Accident" if (rnd == 1 and session == "R" and i == 3) else "Finished",
+                    dnf_cause="incident" if (rnd == 1 and session == "R" and i == 3) else None,
+                    gap_to_winner_median_clean_air_s=0.25 * i, is_wet=False,
+                ))
+    return pd.DataFrame(rows)
+
+
+def _fake_fit(driver_rounds, chains=2, draws=4):
+    """(idata, data) standing in for a fitted pre-weekend posterior. A plain
+    xarray Dataset for the same reason tests/test_conditioning.py uses one: the
+    `arviz.from_dict` signature moved between the 0.x and 1.x lines, and
+    xarray is all `posterior_pace_draws` touches."""
+    from model.pace import CIRCUIT_TYPES
+
+    teams = sorted(set(TEAMS))
+    rounds = sorted({(int(s), int(r)) for s, r in
+                      zip(driver_rounds["season"], driver_rounds["round"])})
+    rng = np.random.default_rng(0)
+
+    def arr(*extra):
+        return np.abs(rng.normal(size=(chains, draws, *extra))) + 0.5
+
+    posterior = xr.Dataset(
+        {
+            "car": (("chain", "draw", "team", "round"), arr(len(teams), len(rounds))),
+            "car0": (("chain", "draw", "team"), arr(len(teams))),
+            "driver_skill": (("chain", "draw", "driver"), arr(len(DRIVERS))),
+            "quali_offset": (("chain", "draw", "driver"), arr(len(DRIVERS))),
+            "driver_track": (("chain", "draw", "driver", "circuit_type"),
+                              arr(len(DRIVERS), len(CIRCUIT_TYPES))),
+            "race_nu": (("chain", "draw"), arr()),
+            "race_sigma": (("chain", "draw"), arr()),
+            "quali_sigma": (("chain", "draw"), arr()),
+        },
+        coords={"team": teams, "driver": DRIVERS, "circuit_type": list(CIRCUIT_TYPES),
+                 "round": list(range(len(rounds)))},
+    )
+    data = types.SimpleNamespace(
+        n_teams=len(teams), n_drivers=len(DRIVERS), n_rounds=len(rounds),
+        team_to_idx={t: i for i, t in enumerate(teams)},
+        driver_to_idx={d: i for i, d in enumerate(DRIVERS)},
+        round_to_idx={sr: i for i, sr in enumerate(rounds)},
+    )
+    return types.SimpleNamespace(posterior=posterior), data
+
+
+class TestForecastWeekendWiresBothReliabilityChannels:
+    """slice-6: `forecast_weekend` must pass sec 3.2's two channels through to
+    the resolver, or a sprint has nothing to price the first-lap spike from and
+    silently falls back to scaling the combined probability flat."""
+
+    CIRCUITS = pd.DataFrame({
+        "event_name": ["Bahrain Grand Prix"], "circuit_type": ["mixed"],
+        "overtaking_difficulty": [4.5],
+    })
+
+    def _run(self, monkeypatch):
+        """Forecast the sprint round, capturing the `RaceTrialInputs` the
+        resolver was handed."""
+        import sim.race
+        from model.reliability import build_reliability_data
+
+        driver_rounds = _sprint_weekend_rounds()
+        idata, data = _fake_fit(driver_rounds)
+        captured = {}
+        real = sim.race.sprint_inputs_from
+
+        def spy(inputs, *a, **kw):
+            captured["gp"] = inputs
+            captured["sprint"] = real(inputs, *a, **kw)
+            return captured["sprint"]
+
+        monkeypatch.setattr(sim.race, "sprint_inputs_from", spy)
+        gp, sprint = forecast_weekend(
+            idata, data, build_reliability_data(driver_rounds), driver_rounds,
+            self.CIRCUITS, season=2024, round_=2, n_trials=200, seed=0)
+        return captured, gp, sprint
+
+    def test_the_sprint_round_really_is_resolved_as_one(self, monkeypatch):
+        captured, gp, sprint = self._run(monkeypatch)
+        assert sprint is not None and len(sprint) == len(DRIVERS)
+        assert len(gp) == len(DRIVERS)
+        assert captured, "sprint_inputs_from was never called -- no sprint was resolved"
+
+    def test_both_channels_reach_the_resolver_and_fold_to_dnf_prob(self, monkeypatch):
+        from model.reliability import combined_dnf_prob
+
+        captured, _gp, _sprint = self._run(monkeypatch)
+        inputs = captured["gp"]
+        assert inputs.mechanical_dnf_prob is not None, "mechanical channel not wired"
+        assert inputs.incident_dnf_prob is not None, "incident channel not wired"
+        assert inputs.dnf_prob == pytest.approx(
+            combined_dnf_prob(inputs.mechanical_dnf_prob, inputs.incident_dnf_prob))
+
+    def test_the_sprint_prices_the_spike_rather_than_scaling_flat(self, monkeypatch):
+        """The behavioural end of the wiring: the sprint's DNF probability is
+        strictly above the flat distance scaling this path used before slice-6,
+        for every driver."""
+        from sim.race import SPRINT_DISTANCE_RATIO
+
+        captured, _gp, _sprint = self._run(monkeypatch)
+        flat = captured["gp"].dnf_prob * SPRINT_DISTANCE_RATIO
+        assert (captured["sprint"].dnf_prob > flat).all()

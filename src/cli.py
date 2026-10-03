@@ -325,6 +325,12 @@ def forecast_weekend(idata, data, reliability_data, driver_rounds: pd.DataFrame,
         race_noise_nu=race_nu_all, race_noise_sigma=race_sigma_all,
         quali_pace=quali_pace, quali_noise_sigma=quali_sigma_all,
         dnf_prob=combined_dnf_prob(mech_prob, incident_prob),
+        # Both channels, not just the fold: on a sprint round they do not
+        # shorten alike (sec 3.2's first-lap spike -- see
+        # `sim.race.sprint_inputs_from`). The resolver reads `dnf_prob`, so
+        # carrying them changes no Grand Prix forecast.
+        mechanical_dnf_prob=mech_prob,
+        incident_dnf_prob=incident_prob,
         overtaking_difficulty=overtaking_difficulty,
         grid=grid,
     )

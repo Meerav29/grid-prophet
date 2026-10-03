@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from model.reliability import combined_dnf_prob, sprint_incident_exposure
 from sim.race import (
     SPRINT_DISTANCE_RATIO, RaceTrialInputs, load_points_table, points_for_position,
     simulate_positions, simulate_weekend, sprint_inputs_from, summarize_trials,
@@ -23,7 +24,8 @@ from sim.race import (
 
 
 def _inputs(race_pace, quali_pace=None, n_trials=4000, overtaking_difficulty=3.0,
-            race_sigma=0.3, dnf_prob=None, grid=None):
+            race_sigma=0.3, dnf_prob=None, grid=None,
+            mechanical_dnf_prob=None, incident_dnf_prob=None):
     """`race_pace` is either a per-driver list (constant across trials) or an
     already-shaped (n_trials, n_drivers) array."""
     race_pace = np.asarray(race_pace, dtype=float)
@@ -42,7 +44,20 @@ def _inputs(race_pace, quali_pace=None, n_trials=4000, overtaking_difficulty=3.0
         dnf_prob=np.zeros((n_trials, n_drivers)) if dnf_prob is None else dnf_prob,
         overtaking_difficulty=overtaking_difficulty,
         grid=grid,
+        mechanical_dnf_prob=mechanical_dnf_prob,
+        incident_dnf_prob=incident_dnf_prob,
     )
+
+
+def _channelled(mechanical, incident, n_trials=4000, n_drivers=2, **kw):
+    """Trial inputs carrying both sec 3.2 channels as well as their fold --
+    what `cli.forecast_weekend` builds, and the only shape from which a sprint
+    can price the first-lap spike."""
+    mech = np.full((n_trials, n_drivers), mechanical)
+    inc = np.full((n_trials, n_drivers), incident)
+    return _inputs(race_pace=np.linspace(0.0, 0.5, n_drivers), n_trials=n_trials,
+                    dnf_prob=combined_dnf_prob(mech, inc),
+                    mechanical_dnf_prob=mech, incident_dnf_prob=inc, **kw)
 
 
 class TestSprintPointsTable:
@@ -203,3 +218,94 @@ class TestNonSprintRoundsAreUnaffected:
         with_ = simulate_weekend(gp, np.random.default_rng(3), has_sprint=True)
         assert (without.positions == with_.positions).all()
         assert (without.dnf == with_.dnf).all()
+
+
+class TestSprintIncidentRiskReadsTheFirstLapSpike:
+    """slice-6, carried forward from PR #8. `sprint_inputs_from` used to scale
+    the whole of `dnf_prob` by the distance ratio, which prices a sprint as if
+    it had a third of a lap 1. Sec 3.2 puts a spike on lap 1, and a sprint has
+    all of it, so the incident channel scales by
+    `reliability.sprint_incident_exposure` and only the mechanical channel
+    scales with distance.
+    """
+
+    MECH, INC = 0.06, 0.05
+
+    def _expected_sprint_dnf(self):
+        return combined_dnf_prob(self.MECH * SPRINT_DISTANCE_RATIO,
+                                  self.INC * sprint_incident_exposure(SPRINT_DISTANCE_RATIO))
+
+    def test_the_two_channels_shorten_separately(self):
+        sprint = sprint_inputs_from(_channelled(self.MECH, self.INC))
+        assert sprint.mechanical_dnf_prob == pytest.approx(self.MECH * SPRINT_DISTANCE_RATIO)
+        assert sprint.incident_dnf_prob == pytest.approx(
+            self.INC * sprint_incident_exposure(SPRINT_DISTANCE_RATIO))
+        # the point of the slice: incident risk is NOT the distance share
+        assert sprint.incident_dnf_prob.mean() > self.INC * SPRINT_DISTANCE_RATIO
+        assert sprint.dnf_prob == pytest.approx(self._expected_sprint_dnf())
+
+    def test_sprint_retirements_exceed_the_old_flat_scaling(self):
+        """The behavioural form: more cars retire in the simulated sprint than
+        the pre-slice-6 flat scaling of the combined probability produced, by
+        about the spike's share of the incident channel."""
+        n_trials = 40_000
+        gp = _channelled(self.MECH, self.INC, n_trials=n_trials)
+        outcome = simulate_weekend(gp, np.random.default_rng(0), has_sprint=True)
+        expected = self._expected_sprint_dnf()
+        flat = combined_dnf_prob(self.MECH, self.INC) * SPRINT_DISTANCE_RATIO
+        assert outcome.sprint_dnf.mean() == pytest.approx(expected, abs=0.004)
+        assert expected > flat * 1.1          # ~18% more, not a rounding artefact
+        assert outcome.sprint_dnf.mean() > flat
+
+    def test_a_sprint_with_no_incident_risk_is_still_flat_in_distance(self):
+        """The change is confined to the incident channel: zero out the incident
+        hazard and the sprint is exactly the pre-slice-6 distance scaling."""
+        sprint = sprint_inputs_from(_channelled(0.3, 0.0))
+        assert sprint.dnf_prob == pytest.approx(0.3 * SPRINT_DISTANCE_RATIO)
+
+    def test_a_caller_holding_only_the_combined_probability_is_unaffected(self):
+        """Nothing can price a spike it was not handed the channels for, so that
+        caller keeps the flat scaling rather than silently guessing a split."""
+        gp = _inputs(race_pace=[0.0, 1.0], dnf_prob=np.full((4000, 2), 0.3))
+        sprint = sprint_inputs_from(gp)
+        assert sprint.dnf_prob == pytest.approx(0.3 * SPRINT_DISTANCE_RATIO)
+        assert sprint.mechanical_dnf_prob is None and sprint.incident_dnf_prob is None
+
+    def test_a_shorter_sprint_still_carries_the_whole_spike(self):
+        """Halve the distance and the mechanical channel halves with it; the
+        incident channel does not, because lap 1 does not get shorter."""
+        half = sprint_inputs_from(_channelled(self.MECH, self.INC), distance_ratio=0.5)
+        full = sprint_inputs_from(_channelled(self.MECH, self.INC), distance_ratio=1.0)
+        assert half.mechanical_dnf_prob == pytest.approx(0.5 * full.mechanical_dnf_prob)
+        assert half.incident_dnf_prob.mean() > 0.5 * full.incident_dnf_prob.mean()
+        assert full.incident_dnf_prob == pytest.approx(self.INC)
+
+
+class TestRaceOutputsAreUnchangedByTheChannels:
+    """slice-6 criterion 3. The resolver draws against `dnf_prob`; the channels
+    exist so that a *shorter* event can rescale them, and must not touch the
+    Grand Prix."""
+
+    def test_carrying_the_channels_does_not_move_the_grand_prix(self):
+        n_trials = 20_000
+        mech, inc = 0.06, 0.05
+        combined = combined_dnf_prob(np.full((n_trials, 2), mech), np.full((n_trials, 2), inc))
+        without = _inputs(race_pace=[0.0, 0.5], n_trials=n_trials, dnf_prob=combined)
+        with_ = _channelled(mech, inc, n_trials=n_trials)
+        assert with_.dnf_prob == pytest.approx(without.dnf_prob)
+
+        a = simulate_weekend(without, np.random.default_rng(5), has_sprint=True)
+        b = simulate_weekend(with_, np.random.default_rng(5), has_sprint=True)
+        assert (a.positions == b.positions).all()
+        assert (a.dnf == b.dnf).all()
+        # ...and the sprint is the only thing that moved
+        assert b.sprint_dnf.mean() > a.sprint_dnf.mean()
+
+    def test_a_round_without_a_sprint_is_identical_either_way(self):
+        mech, inc = 0.06, 0.05
+        combined = combined_dnf_prob(np.full((4000, 2), mech), np.full((4000, 2), inc))
+        a = simulate_weekend(_inputs(race_pace=[0.0, 0.5], dnf_prob=combined),
+                              np.random.default_rng(9), has_sprint=False)
+        b = simulate_weekend(_channelled(mech, inc), np.random.default_rng(9), has_sprint=False)
+        assert (a.positions == b.positions).all() and (a.dnf == b.dnf).all()
+        assert not b.has_sprint

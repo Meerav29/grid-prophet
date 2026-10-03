@@ -251,7 +251,7 @@ backtest.
 
 ## slice-6 — Slice-3 carry-forwards: clamp the channel ratio, route the first-lap spike into sprints
 
-Status: todo
+Status: in-progress
 Spec: `docs/grid-prophet-v2-spec.md` §3.2, §3.4; follows slice-3 (PR #8)
 
 Both items were flagged by the review of PR #8 as non-blocking. Read the
