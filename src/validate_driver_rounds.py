@@ -28,8 +28,8 @@ def weather_section(df: pd.DataFrame) -> list[str]:
     """Sec 5 weather coverage, as report lines.
 
     Split out of `main` so it can be unit-tested, and written against
-    `model.weather` rather than against the raw column so a file collected
-    before the flag existed reports "not recorded" instead of raising.
+    `model.weather` rather than against the raw column so a file lacking
+    the `is_wet` column reports "not recorded" instead of raising.
     """
     lines = ["## Weather coverage (spec sec 5)\n"]
     race_rows = df[df["session_type"].isin(["R", "S"])]

@@ -258,3 +258,60 @@ class TestValidatorWeatherSection:
         assert "not recorded 12" in text          # 3 rounds x 4 drivers of race rows
         assert "Rounds with at least one wet race/sprint session: 0" in text
         assert "(none)" in text
+
+
+class TestWeatherSummaryEdges:
+    @staticmethod
+    def _summary(weather_data):
+        from collect_v2 import _weather_summary
+        return _weather_summary(_StubSession(weather_data))
+
+    def test_rainfall_without_a_temperature_column(self):
+        assert self._summary(pd.DataFrame({"Rainfall": [False, True]})) == (True, None)
+
+    def test_temperature_without_a_rainfall_column_is_unknown(self):
+        assert self._summary(pd.DataFrame({"AirTemp": [20.0, 22.0]})) == (None, 21.0)
+
+    def test_all_nan_temperature_is_none_not_nan(self):
+        wx = pd.DataFrame({"Rainfall": [False, False], "AirTemp": [np.nan, np.nan]})
+        assert self._summary(wx) == (False, None)
+
+    def test_partly_measured_rainfall_uses_the_measured_values(self):
+        wx = pd.DataFrame({"Rainfall": [np.nan, True], "AirTemp": [20.0, 20.0]})
+        assert self._summary(wx)[0] is True
+
+    def test_a_failing_session_logs_a_warning(self, caplog):
+        with caplog.at_level("WARNING"):
+            self._summary(RuntimeError("boom"))
+        assert "weather unavailable" in caplog.text
+
+
+class TestUnknownIsVisible:
+    def test_csv_round_trip_keeps_unknown_distinct_from_dry(self, tmp_path):
+        frame = pd.DataFrame({"is_wet": [True, None, False]})
+        path = tmp_path / "rounds.csv"
+        frame.to_csv(path, index=False)
+        assert list(wet_state(pd.read_csv(path))) == [True, None, False]
+
+    def test_unrecognised_values_warn_but_blanks_do_not(self, caplog):
+        with caplog.at_level("WARNING"):
+            wet_state(pd.DataFrame({"is_wet": [True, np.nan, False]}))
+        assert caplog.text == ""
+        with caplog.at_level("WARNING"):
+            states = wet_state(pd.DataFrame({"is_wet": ["rain", "True"]}))
+        assert list(states) == [None, True]
+        assert "unrecognised" in caplog.text
+
+    def test_unrecorded_race_weather_warns_at_fit_time(self, caplog):
+        frame = _driver_rounds(wet_rounds={(2023, 1)})
+        frame["is_wet"] = frame["is_wet"].astype(object)
+        frame.loc[frame.index[frame["session_type"] == "R"][:1], "is_wet"] = np.nan
+        with caplog.at_level("WARNING"):
+            build_pace_data(frame)
+        assert "weather not recorded" in caplog.text
+
+    def test_mismatched_wet_flags_raise_instead_of_going_dry(self):
+        data = build_pace_data(_driver_rounds(wet_rounds={(2023, 1)}))
+        data.race_is_wet = data.race_is_wet[:-1]
+        with pytest.raises(ValueError, match="race_is_wet"):
+            _has_wet_races(data)

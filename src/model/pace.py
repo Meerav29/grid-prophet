@@ -49,7 +49,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from model.weather import observation_sigma_scale, wet_flags
+from model.weather import observation_sigma_scale, weather_coverage, wet_flags
 
 log = logging.getLogger(__name__)
 
@@ -217,6 +217,11 @@ def build_pace_data(
     def _round_idx_col(frame: pd.DataFrame) -> np.ndarray:
         return np.array([round_to_idx[(int(s), int(r))] for s, r in zip(frame["season"], frame["round"])])
 
+    coverage = weather_coverage(race)
+    if coverage["unknown"]:
+        log.warning("Race weather not recorded for %d of %d fitted race rows (fit as dry); wet %d, dry %d",
+                    coverage["unknown"], len(race), coverage["wet"], coverage["dry"])
+
     return PaceData(
         race_team_idx=race["team"].map(team_to_idx).to_numpy(dtype=int),
         race_driver_idx=race["abbreviation"].map(driver_to_idx).to_numpy(dtype=int),
@@ -267,12 +272,19 @@ def _has_wet_races(data: PaceData) -> bool:
     False for a `PaceData` built before this slice existed (`race_is_wet` is
     None) and for a window whose weather is entirely dry or entirely
     unrecorded -- all three are "nothing here needs a second noise scale".
+    A flag array that does not line up with `race_y` is a bug, not a dry
+    window, and raises.
     """
     wet = data.race_is_wet
     if wet is None:
         return False
     wet = np.asarray(wet, dtype=bool)
-    return bool(wet.shape == data.race_y.shape and wet.any())
+    if wet.shape != data.race_y.shape:
+        raise ValueError(
+            f"race_is_wet has shape {wet.shape} but race_y has {data.race_y.shape}; "
+            "the wet flags must be built from the same rows as the observations"
+        )
+    return bool(wet.any())
 
 
 def build_model(data: PaceData, sigma_dev: float = SIGMA_DEV, rookie_penalty_s: float = ROOKIE_PENALTY_S):

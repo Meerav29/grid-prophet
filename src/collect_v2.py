@@ -119,11 +119,17 @@ def _weather_summary(session) -> tuple[bool | None, float | None]:
         if wx is None or wx.empty:
             return None, None
         air_temp = float(wx["AirTemp"].mean()) if "AirTemp" in wx else None
+        if air_temp is not None and np.isnan(air_temp):
+            air_temp = None
         if "Rainfall" not in wx or wx["Rainfall"].isna().all():
             return None, air_temp
         is_wet = bool((wx["Rainfall"] == True).any())  # noqa: E712
         return is_wet, air_temp
     except Exception:
+        # Still unknown rather than dry, but say so: a FastF1 or load-flag
+        # change that breaks every session must not look like a dry season.
+        log.warning("  weather unavailable for %s %s -- recorded as unknown",
+                    getattr(session, "event", "?"), getattr(session, "name", "?"), exc_info=True)
         return None, None
 
 

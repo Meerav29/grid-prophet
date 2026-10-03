@@ -23,8 +23,12 @@ exactly the model it produced before this slice (see `model.pace.build_model`).
 """
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pandas as pd
+
+log = logging.getLogger(__name__)
 
 WET_COLUMN = "is_wet"
 
@@ -68,7 +72,16 @@ def wet_state(frame: pd.DataFrame) -> pd.Series:
     """
     if WET_COLUMN not in frame.columns:
         return pd.Series([None] * len(frame), index=frame.index, dtype=object)
-    return frame[WET_COLUMN].map(_coerce_one).astype(object)
+    raw = frame[WET_COLUMN]
+    states = raw.map(_coerce_one).astype(object)
+    # Blank cells are legitimately "not recorded"; a non-blank cell that still
+    # came out unknown is a value nobody recognised, and would otherwise fit
+    # as a dry round without a word.
+    unrecognised = raw[states.isna() & raw.notna()]
+    if not unrecognised.empty:
+        log.warning("is_wet: %d unrecognised value(s) %s treated as not recorded (dry in the fit)",
+                    len(unrecognised), sorted({repr(v) for v in unrecognised})[:5])
+    return states
 
 
 def wet_flags(frame: pd.DataFrame) -> np.ndarray:
