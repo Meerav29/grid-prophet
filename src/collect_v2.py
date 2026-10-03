@@ -104,16 +104,27 @@ def _circuit_lookup(event_name: str, circuits: pd.DataFrame) -> str:
     return match.iloc[0]["circuit_type"]
 
 
-def _weather_summary(session) -> tuple[bool, float | None]:
+def _weather_summary(session) -> tuple[bool | None, float | None]:
+    """(is_wet, air_temp_c) for one session, with `None` meaning *not recorded*.
+
+    Sec 5 sources the wet/dry flag from FastF1, so a session FastF1 has no
+    weather for gets a blank `is_wet`, not a `False`. Writing False would be
+    fabricating a dry round out of a missing measurement, and it would hide
+    the gap: `model.weather` still treats unknown as dry for the likelihood,
+    but the CSV keeps the distinction so `validate_driver_rounds` can report
+    how much of the window is actually measured.
+    """
     try:
         wx = session.weather_data
         if wx is None or wx.empty:
-            return False, None
+            return None, None
+        air_temp = float(wx["AirTemp"].mean()) if "AirTemp" in wx else None
+        if "Rainfall" not in wx or wx["Rainfall"].isna().all():
+            return None, air_temp
         is_wet = bool((wx["Rainfall"] == True).any())  # noqa: E712
-        air_temp = float(wx["AirTemp"].mean())
         return is_wet, air_temp
     except Exception:
-        return False, None
+        return None, None
 
 
 def _build_quali_rows(year: int, rnd: int, event_name: str, circuit_type: str) -> list[dict]:

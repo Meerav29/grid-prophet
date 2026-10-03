@@ -228,7 +228,7 @@ Out of scope: the Phase 2 backtest and its log-loss comparison (owner present).
 
 ## slice-5 — Weather: wet races get their own noise scale
 
-Status: todo
+Status: in-progress
 Spec: `docs/grid-prophet-v2-spec.md` §5 (weather row: "wet races get their own
 noise scale"), §8 Phase 2
 
