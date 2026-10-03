@@ -18,6 +18,13 @@ The quali equation shares `car` and `driver` with the race equation (sec 3.1,
 "Quali pace is a parallel equation sharing car and driver... with its own
 noise and a quali-specific driver offset") and is fit jointly.
 
+Sec 5 adds one more term to the race likelihood: "wet races get their own
+noise scale". A wet round's race observations are drawn with
+`race_sigma * race_sigma_wet_ratio` instead of `race_sigma` (see
+`model.weather`). The ratio parameter exists only when the fit window
+contains a wet race, so a dry-only window builds the same graph it built
+before that rule arrived.
+
 Deterministic data-prep (`build_pace_data`) is unit-tested directly (see
 tests/test_pace_data.py). The PyMC model itself is validated indirectly,
 through the backtest metrics the spec specifies (sec 7) -- that is the
@@ -41,6 +48,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
+
+from model.weather import observation_sigma_scale, weather_coverage, wet_flags
 
 log = logging.getLogger(__name__)
 
@@ -85,6 +94,7 @@ class PaceData:
     driver_names: list = field(default_factory=list)     # by abbreviation
     round_index: pd.DataFrame = None                      # round_idx -> season, round
     rookie_mask: np.ndarray = None                         # (n_drivers,) bool
+    race_is_wet: np.ndarray = None                         # (n_race_obs,) bool, sec 5
     step_sigma_scale: np.ndarray = None                    # (n_rounds,) float, step i-1->i
 
     team_to_idx: dict = field(default_factory=dict)
@@ -207,12 +217,18 @@ def build_pace_data(
     def _round_idx_col(frame: pd.DataFrame) -> np.ndarray:
         return np.array([round_to_idx[(int(s), int(r))] for s, r in zip(frame["season"], frame["round"])])
 
+    coverage = weather_coverage(race)
+    if coverage["unknown"]:
+        log.warning("Race weather not recorded for %d of %d fitted race rows (fit as dry); wet %d, dry %d",
+                    coverage["unknown"], len(race), coverage["wet"], coverage["dry"])
+
     return PaceData(
         race_team_idx=race["team"].map(team_to_idx).to_numpy(dtype=int),
         race_driver_idx=race["abbreviation"].map(driver_to_idx).to_numpy(dtype=int),
         race_round_idx=_round_idx_col(race),
         race_circuit_idx=race["circuit_type"].map(circuit_to_idx).fillna(0).to_numpy(dtype=int),
         race_y=race["gap_to_winner_median_clean_air_s"].to_numpy(dtype=float),
+        race_is_wet=wet_flags(race),
         quali_team_idx=quali["team"].map(team_to_idx).to_numpy(dtype=int),
         quali_driver_idx=quali["abbreviation"].map(driver_to_idx).to_numpy(dtype=int),
         quali_round_idx=_round_idx_col(quali),
@@ -237,6 +253,38 @@ def build_pace_data(
 
 SIGMA_DEV = 0.08        # base random-walk step size, seconds/lap per round
 ROOKIE_PENALTY_S = 0.3  # sec 3.5: rookies land ~0.2-0.4s/lap behind in year one
+
+# Sec 5: "wet races get their own noise scale". The wet scale is parameterised
+# as a *ratio* to the dry one rather than as a free scale of its own, because
+# wet rounds are a small minority of any fit window and an independent
+# HalfNormal would be estimated off a handful of races. A LogNormal ratio
+# prior pools toward the dry scale, is positive by construction, and is
+# centred above 1 because that is the direction sec 5 is pointing -- loosely
+# enough (90% of the prior mass runs roughly 0.8x to 2.9x) that a window whose
+# wet rounds were *tidier* than its dry ones can still say so.
+WET_SIGMA_RATIO_PRIOR = 1.5
+WET_SIGMA_RATIO_SD = 0.4
+
+
+def _has_wet_races(data: PaceData) -> bool:
+    """Whether the fit window holds at least one wet race observation.
+
+    False for a `PaceData` built before this slice existed (`race_is_wet` is
+    None) and for a window whose weather is entirely dry or entirely
+    unrecorded -- all three are "nothing here needs a second noise scale".
+    A flag array that does not line up with `race_y` is a bug, not a dry
+    window, and raises.
+    """
+    wet = data.race_is_wet
+    if wet is None:
+        return False
+    wet = np.asarray(wet, dtype=bool)
+    if wet.shape != data.race_y.shape:
+        raise ValueError(
+            f"race_is_wet has shape {wet.shape} but race_y has {data.race_y.shape}; "
+            "the wet flags must be built from the same rows as the observations"
+        )
+    return bool(wet.any())
 
 
 def build_model(data: PaceData, sigma_dev: float = SIGMA_DEV, rookie_penalty_s: float = ROOKIE_PENALTY_S):
@@ -284,7 +332,22 @@ def build_model(data: PaceData, sigma_dev: float = SIGMA_DEV, rookie_penalty_s: 
         )
         race_nu = pm.Gamma("race_nu", alpha=5.0, beta=0.5)
         race_sigma = pm.HalfNormal("race_sigma", 0.5)
-        pm.StudentT("race_obs", nu=race_nu, mu=race_mu, sigma=race_sigma, observed=data.race_y)
+
+        # Sec 5's wet noise scale. The wet branch is built only when the fit
+        # window actually holds a wet race: on dry-only data the graph below
+        # is the pre-slice graph exactly, same free variables in the same
+        # order, rather than the pre-slice graph plus an unidentified
+        # parameter sampling against its prior.
+        race_obs_sigma = race_sigma
+        if _has_wet_races(data):
+            wet_ratio = pm.LogNormal(
+                "race_sigma_wet_ratio",
+                mu=float(np.log(WET_SIGMA_RATIO_PRIOR)), sigma=WET_SIGMA_RATIO_SD,
+            )
+            pm.Deterministic("race_sigma_wet", race_sigma * wet_ratio)
+            race_obs_sigma = race_sigma * observation_sigma_scale(data.race_is_wet, wet_ratio)
+
+        pm.StudentT("race_obs", nu=race_nu, mu=race_mu, sigma=race_obs_sigma, observed=data.race_y)
 
         # --- quali likelihood: shares car/driver, own noise + Saturday-specialist offset ---
         quali_mu = (
