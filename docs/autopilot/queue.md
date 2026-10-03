@@ -251,7 +251,16 @@ backtest.
 
 ## slice-6 — Slice-3 carry-forwards: clamp the channel ratio, route the first-lap spike into sprints
 
-Status: in-progress
+Status: in-review — PR #14, opened 2026-10-03.
+
+Both halves shipped; the 600-line fallback in "Out of scope" below was not
+needed (473 lines added+deleted). `CAUSELESS_RATIO_FLOOR = 0.05` clamps the
+causeless split; `sprint_incident_exposure` sums the incident lap pmf over the
+sprint's lap window (0.4412 against a distance share of 0.3279), which is the
+first-lap spike's first real consumer. Three decisions recorded in
+`docs/autopilot/decisions.md`. The backtest has still not been run against any
+of Phase 2 — sprint DNF probability moves ~18% on a plausible driver and
+nothing says that is closer to the truth.
 Spec: `docs/grid-prophet-v2-spec.md` §3.2, §3.4; follows slice-3 (PR #8)
 
 Both items were flagged by the review of PR #8 as non-blocking. Read the
