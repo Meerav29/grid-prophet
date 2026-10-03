@@ -251,16 +251,49 @@ backtest.
 
 ## slice-6 — Slice-3 carry-forwards: clamp the channel ratio, route the first-lap spike into sprints
 
-Status: in-review — PR #14, opened 2026-10-03.
+Status: merged — PR #14 merged by the review routine 2026-10-03 (`0829e36`).
 
 Both halves shipped; the 600-line fallback in "Out of scope" below was not
-needed — the diff stays well inside the review cap. `CAUSELESS_RATIO_FLOOR = 0.05` clamps the
+needed — the diff is 482 lines, inside the review cap. `CAUSELESS_RATIO_FLOOR = 0.05` clamps the
 causeless split; `sprint_incident_exposure` sums the incident lap pmf over the
 sprint's lap window (0.4412 against a distance share of 0.3279), which is the
 first-lap spike's first real consumer. Three decisions recorded in
 `docs/autopilot/decisions.md`. The backtest has still not been run against any
 of Phase 2 — sprint DNF probability moves ~18% on a plausible driver and
 nothing says that is closer to the truth.
+
+All four criteria were verified against the diff rather than against the PR
+body, and every number the PR claims was re-derived independently in a clean
+venv. CI (`test`) was green on `3bc5073`. All five mutation results reproduced
+exactly as stated (3 / 5 / 2 / 3 / 5 failures), as did the baseline count
+(228 on `auto/queue` → 251, so 23 new tests) and every review-pack number
+(incident exposure 0.441176 = 30/68, sprint p_dnf 0.035082 → 0.041297 = +17.7%,
+the one-sided window's flagged row at 0.95 / 0.05 where it was 1.0 / 0.0).
+Nothing in the body was found overstated.
+
+The slice closes the regression gap PR #10's review flagged on slice-4: the
+production wiring in `cli.forecast_weekend` is test-protected, and M3 — deleting
+those two keyword arguments — fails two tests in `tests/test_cli.py`. Criterion
+3 holds structurally and not only by test: `simulate_weekend` draws the Grand
+Prix off `rng` first and `simulate_positions` reads only `inputs.dnf_prob`, so a
+sprint change cannot move a Sunday forecast by a trial.
+
+Two things carried forward, neither blocking:
+
+- **The channels are optional, so an unwired caller silently gets the old flat
+  scaling.** `sprint_inputs_from` falls back to scaling `dnf_prob` by the
+  distance ratio whenever either channel is None. That is correct today —
+  `backtest.forecast_race_challenger` is the only other `RaceTrialInputs` call
+  site and it calls `simulate_positions` directly, never resolving a sprint, so
+  there is nothing there to misprice. It becomes a trap the moment a sprint is
+  resolved on the backtest path: the fallback is silent, not an error, so the
+  spike would go un-priced with the suite still green.
+- **`dnf_prob` and its two channels are two statements of one quantity.**
+  Nothing in the dataclass enforces that the fold agrees with its parts; the PR
+  names this itself in decision 3. The production path is test-asserted
+  consistent by `test_both_channels_reach_the_resolver_and_fold_to_dnf_prob`,
+  but a caller can construct an inconsistent set and have the Grand Prix use one
+  number while the sprint uses the other.
 Spec: `docs/grid-prophet-v2-spec.md` §3.2, §3.4; follows slice-3 (PR #8)
 
 Both items were flagged by the review of PR #8 as non-blocking. Read the
