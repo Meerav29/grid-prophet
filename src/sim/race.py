@@ -9,9 +9,10 @@ Per simulated trial:
      grid. Post-quali mode: use the round's real grid instead (`inputs.grid`,
      identical across trials). Either way, apply a track-specific
      overtaking-difficulty parameter to turn (grid, race pace) into a
-     finishing order -- a fixed per-circuit value from `data/circuits.csv`,
-     exactly as sec 3.3 specifies for phase 1 ("fixed per-circuit overtaking
-     parameter"; fitting it from data is phase 2).
+     finishing order. The value comes from `model.overtaking`, which fits it
+     per circuit from observed grid-to-finish changes and shrinks it toward
+     the `data/circuits.csv` hand rating; circuits with no usable history
+     still get the hand rating itself.
   4. Draw DNFs (team-level mechanical hazard only, sec 3.2 first cut).
   5. Order survivors by effective pace, convert to points via the points
      table.
@@ -47,7 +48,9 @@ POINTS_TABLE_CSV = os.path.join(DATA_DIR, "points_tables.csv")
 # maximally hard (overtaking_difficulty == 1, e.g. Monaco): starting further
 # back costs roughly this much per slot, and pace differences smaller than
 # that can't claw the place back within the race. Scaled down as
-# overtaking_difficulty rises (data/circuits.csv, 1=hardest, ~5=easiest).
+# overtaking_difficulty rises (1=hardest, ~5=easiest). This constant also
+# fixes the units `model.overtaking` fits in -- changing it rescales every
+# fitted difficulty, so the two move together and neither is free to drift.
 GRID_LOCK_BASE_PENALTY_S = 0.55
 
 

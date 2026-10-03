@@ -157,7 +157,56 @@ the split.
 
 ## slice-4 — Fit the overtaking parameter from data
 
-Status: todo
+Status: merged — PR #10 merged by the review routine 2026-10-02 (`44938bb`).
+
+All four criteria were verified against the diff rather than against the PR
+body, and every number the PR claims was re-derived independently in a clean
+venv rather than taken on trust. CI (`test`) was green on `b9e23d3`; the diff is
+491 lines, inside the 600-line review cap. All five of the PR's mutation results
+reproduced exactly as stated (7 / 3 / 2 / 1 / 9 failures), as did the review
+pack's fixture output (Bahrain raw 2.294 / shrunk 4.059, Jeddah 3.110 / 3.422,
+and the 2024:2 forecast falling back to the 3.5 hand rating on a leak-safe
+window) and all eight planted-recovery rows (worst error 0.190 against the
+stated ±0.45 tolerance; Monaco-like 1.018 against Bahrain-like 5.168). Nothing
+in the body was found overstated.
+
+The backtest has still not been run against this slice. The fit recovers a planted
+parameter and breaks no existing test, but whether it *improves* the forecast is
+unmeasured — that is Phase 2's gate, with the owner present.
+
+The fit is live on the production path and not only in fixtures:
+`src/validate_driver_rounds.py` confirms the real `driver_rounds.csv` schema
+carries `gap_to_winner_median_clean_air_s`, `classified`, `grid_position` and
+`finish_position`, so `_usable_race_rows` does not silently return empty outside
+the test data. Both `_circuit_info` call sites are wired, and `src/sim/race.py`'s
+diff is comment-only.
+
+Two things carried forward, neither blocking:
+
+- **Neither production call site is test-protected.** The two wirings that make
+  this slice do anything in a real run — `build_overtaking_data` inside
+  `cli.forecast_weekend` and inside `backtest.forecast_race_challenger` — can
+  each be deleted with all 182 tests still passing. Criterion 2's "a test covers
+  both paths" is satisfied at the `_circuit_info` / `circuit_difficulty` seam,
+  where the test hands the fit in; nothing asserts that a forecast builds one
+  for itself off the pre-round window. So a later refactor can drop every
+  forecast back to the hand rating silently, and the leak-safety this design
+  turns on is guarded only by a unit test of `build_overtaking_data`'s own
+  window argument, not by anything at the call site. Merged because the code is
+  correct as written and all five mutations confirm the new behavior does have
+  failing-without tests — the gap is regression cover on three lines, not a
+  missing behavior. A test asserting `forecast_weekend` returns a different
+  forecast with and without a fitted circuit would close it.
+- **The fit is rebuilt in full on every forecast call.**
+  `build_overtaking_data` fits *every* circuit in the window when only the
+  forecast round's circuit is consumed. Milliseconds at the current data size,
+  but a full backtest pays it once per round, so it scales with
+  rounds × circuits rather than with rounds.
+
+Note for the owner: two agents wrote this status within minutes of each other on
+2026-10-02 — `a4fa8d4` recorded the merge as the owner's. It was the review
+routine's. Worth a look at whether the review cron fired twice.
+
 Spec: `docs/grid-prophet-v2-spec.md` §3.3 (step 3), §5 (`data/circuits.csv`
 overtaking difficulty hand rating), §8 Phase 2
 
