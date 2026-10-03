@@ -5,6 +5,10 @@ Checks called out in the v2 spec (docs/grid-prophet-v2-spec.md sec 8, Phase 0):
   2. Clean-air lap filter sanity: median clean-air race pace should correlate
      strongly (~0.8+) with qualifying pace, and top-3 by clean-air pace should
      usually match the actual podium.
+  3. Weather coverage (spec sec 5): how many rounds are recorded wet, dry, or
+     not measured at all. The pace model gives wet rounds their own noise
+     scale (see model.weather), so a window with no recorded weather silently
+     fits as if it were all dry -- this section is how that stays visible.
 
 Writes a plain-text report to data/driver_rounds_validation.md.
 """
@@ -15,7 +19,37 @@ import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr, spearmanr
 
+from model.weather import weather_coverage, wet_flags
+
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+
+
+def weather_section(df: pd.DataFrame) -> list[str]:
+    """Sec 5 weather coverage, as report lines.
+
+    Split out of `main` so it can be unit-tested, and written against
+    `model.weather` rather than against the raw column so a file lacking
+    the `is_wet` column reports "not recorded" instead of raising.
+    """
+    lines = ["## Weather coverage (spec sec 5)\n"]
+    race_rows = df[df["session_type"].isin(["R", "S"])]
+    counts = weather_coverage(race_rows)
+    total = max(len(race_rows), 1)
+    lines.append(f"Race/sprint rows: wet {counts['wet']}, dry {counts['dry']}, "
+                 f"not recorded {counts['unknown']} "
+                 f"({counts['unknown'] / total:.1%} unmeasured)")
+
+    rounds = race_rows[["season", "round"]].copy()
+    rounds["is_wet_flag"] = wet_flags(race_rows)
+    wet_rounds = (
+        rounds.groupby(["season", "round"])["is_wet_flag"].any()
+        .loc[lambda s: s].index.tolist()
+    )
+    lines.append(f"Rounds with at least one wet race/sprint session: {len(wet_rounds)}")
+    lines.append(", ".join(f"{int(s)}:{int(r)}" for s, r in wet_rounds) if wet_rounds else "(none)")
+    lines.append("Unrecorded weather is treated as dry by the pace likelihood, "
+                 "never as wet -- see model.weather.\n")
+    return lines
 
 
 def main():
@@ -49,15 +83,19 @@ def main():
     lines.append(flagged_rows["status"].value_counts().to_string() if not flagged_rows.empty else "(none)")
     lines.append("")
 
+    lines.extend(weather_section(df))
+
     # -- Clean-air lap filter validation --
     lines.append("## Clean-air lap filter validation\n")
 
     q = df[df["session_type"] == "Q"][["season", "round", "abbreviation", "gap_to_best_s"]].rename(
         columns={"gap_to_best_s": "quali_gap_s"}
     )
-    r = df[df["session_type"] == "R"][
+    race_all = df[df["session_type"] == "R"].copy()
+    race_all["is_wet_flag"] = wet_flags(race_all)
+    r = race_all[
         ["season", "round", "abbreviation", "gap_to_winner_best_clean_air_s",
-         "gap_to_winner_median_clean_air_s", "finish_position", "classified", "is_wet"]
+         "gap_to_winner_median_clean_air_s", "finish_position", "classified", "is_wet_flag"]
     ]
     merged = q.merge(r, on=["season", "round", "abbreviation"], how="inner")
 
@@ -72,7 +110,7 @@ def main():
         lines.append(f"### {label} -- all sessions (n={len(pairs)})")
         lines.append(f"Pearson r = {pear_r:.3f} (p={pear_p:.2e}), Spearman r = {spear_r:.3f} (p={spear_p:.2e})")
 
-        dry = pairs[(~pairs["is_wet"]) & (pairs["classified"])]
+        dry = pairs[(~pairs["is_wet_flag"]) & (pairs["classified"])]
         if len(dry) > 10:
             pear_r2, _ = pearsonr(dry["quali_gap_s"], dry[col])
             spear_r2, _ = spearmanr(dry["quali_gap_s"], dry[col])
