@@ -248,8 +248,71 @@ def _calibration_bins(forecast: pd.DataFrame, actual: pd.DataFrame, col: str, th
     return out
 
 
+POST_QUALI_METRICS = ("log_loss_winner", "brier_podium", "brier_points", "spearman")
+
+
+def post_quali_summary(metrics_df: pd.DataFrame, conditioning_log: pd.DataFrame) -> dict:
+    """Phase 2's gate in numbers (spec sec 8): does conditioning on quali beat
+    the pre-weekend forecast on the *same* rounds, and how often did the warm
+    start fall back (spec sec 6: a high rate is a signal, not something to
+    absorb). Pre and post means are taken over rounds that have both, so a
+    round that failed to condition cannot flatter either side."""
+    out: dict = {}
+    both = metrics_df.dropna(subset=["log_loss_winner_postquali"])         if "log_loss_winner_postquali" in metrics_df.columns else metrics_df.iloc[0:0]
+    out["n_rounds_scored_postquali"] = len(both)
+    if len(both):
+        for m in POST_QUALI_METRICS:
+            out[f"mean_{m}_pre_paired"] = float(both[f"{m}_model"].mean())
+            out[f"mean_{m}_postquali"] = float(both[f"{m}_postquali"].mean())
+        out["postquali_log_loss_delta"] = (out["mean_log_loss_winner_postquali"]
+                                           - out["mean_log_loss_winner_pre_paired"])
+        out["postquali_beats_pre_log_loss"] = out["postquali_log_loss_delta"] < 0
+    if len(conditioning_log):
+        from model.conditioning import fallback_rate, regressions
+        out["fallback_rate"] = fallback_rate(conditioning_log)
+        out["n_conditioned_rounds"] = len(conditioning_log)
+        out["n_fallbacks"] = int(conditioning_log["fell_back"].astype(bool).sum())
+        out["n_regressions"] = len(regressions(conditioning_log))
+    return out
+
+
+def _post_quali_arm(prior_idata, driver_rounds, driver_meta, circuits, reliability_data,
+                     season: int, round_: int, n_trials: int, chains: int,
+                     conditioning_records: list, outdir: str) -> dict:
+    """Condition on round `round_`'s quali (warm-started NUTS, spec sec 6),
+    forecast from the real grid, score it. Returns `*_postquali` metric keys,
+    or {} when conditioning/forecasting fails -- the failure is printed and the
+    round simply has no post-quali score, never a silent zero."""
+    from dataclasses import asdict
+    from cli import forecast_race
+    from model.conditioning import append_record, condition_on_quali
+
+    try:
+        idata, data, record = condition_on_quali(
+            driver_rounds, driver_meta, season, round_, prior_idata, chains=chains, seed=round_,
+        )
+    except Exception as exc:
+        print(f"    WARNING: post-quali conditioning failed for {season}:{round_}: {exc}")
+        return {}
+    conditioning_records.append(asdict(record))
+    append_record(os.path.join(outdir, "conditioning_log.csv"), record)
+    print(f"    post-quali {season}:{round_} path={record.path} total={record.total_s:.1f}s"
+          f"{' REGRESSION' if record.regression else ''}")
+    try:
+        forecast = forecast_race(idata, data, reliability_data, driver_rounds, circuits, season,
+                                  round_, n_trials=n_trials, seed=round_, mode="post-quali")
+    except Exception as exc:
+        print(f"    WARNING: post-quali forecast failed for {season}:{round_}: {exc}")
+        return {}
+    scored = score_round(forecast, driver_rounds, season, round_)
+    if scored is None:
+        return {}
+    return {f"{m}_postquali": scored[f"{m}_model"] for m in POST_QUALI_METRICS}
+
+
 def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
-                  rounds: str = "coarse", advi_steps: int = 4000, out_dir: str | None = None) -> pd.DataFrame:
+                  rounds: str = "coarse", advi_steps: int = 4000, out_dir: str | None = None,
+                  post_quali: bool = False, post_quali_chains: int = 2) -> pd.DataFrame:
     from model.pace import build_pace_data, fit_nuts, fit_advi
     from model.reliability import build_reliability_data
     from model.challenger import build_challenger_frame, fit_challenger
@@ -262,7 +325,15 @@ def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
 
     results = []
     calibration_rows = []
+    conditioning_records = []
     t_start = time.time()
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    outdir = out_dir or os.path.join(OUTPUTS_DIR, f"backtest_{ts}")
+    if post_quali and rounds == "coarse":
+        print("[backtest] WARNING: --post-quali with --rounds coarse compares a conditioned "
+              "refit through round rr against a pre forecast from a stale posterior, so the "
+              "delta mixes data freshness with conditioning. Use --rounds all for the gate.")
 
     for season in seasons:
         season_rounds = sorted(driver_rounds[(driver_rounds["season"] == season) &
@@ -327,6 +398,11 @@ def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
                         print(f"    WARNING: challenger forecast failed for {season}:{rr}: {exc}")
 
                 metrics = score_round(forecast, driver_rounds, season, rr, challenger_forecast=challenger_forecast)
+                if metrics is not None and post_quali:
+                    metrics.update(_post_quali_arm(
+                        idata, driver_rounds, driver_meta, circuits, reliability_data, season, rr,
+                        n_trials, post_quali_chains, conditioning_records, outdir,
+                    ))
                 if metrics is not None:
                     metrics["fit_elapsed_s"] = fit_elapsed
                     results.append(metrics)
@@ -343,8 +419,6 @@ def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
     metrics_df = pd.DataFrame(results)
     calib_df = pd.DataFrame(calibration_rows, columns=["p_podium_pred", "podium_actual"])
 
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    outdir = out_dir or os.path.join(OUTPUTS_DIR, f"backtest_{ts}")
     os.makedirs(outdir, exist_ok=True)
     metrics_df.to_csv(os.path.join(outdir, "backtest_metrics.csv"), index=False)
     calib_df.to_csv(os.path.join(outdir, "calibration_podium.csv"), index=False)
@@ -378,6 +452,9 @@ def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
                     ch["log_loss_winner_model"].mean() < ch["log_loss_winner_challenger"].mean()
                 ),
             })
+    if post_quali:
+        summary["post_quali"] = True
+        summary.update(post_quali_summary(metrics_df, pd.DataFrame(conditioning_records)))
     with open(os.path.join(outdir, "backtest_summary.json"), "w") as f:
         json.dump(summary, f, indent=2)
 

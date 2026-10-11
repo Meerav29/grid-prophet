@@ -411,6 +411,7 @@ def cmd_backtest(args):
     run_backtest(
         seasons=seasons, n_trials=args.n_trials, method=args.method,
         rounds=args.rounds, advi_steps=args.advi_steps, out_dir=args.out_dir,
+        post_quali=args.post_quali, post_quali_chains=args.post_quali_chains,
     )
 
 
@@ -450,6 +451,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt.add_argument("--n-trials", type=int, default=5000)
     p_bt.add_argument("--advi-steps", type=int, default=4000)
     p_bt.add_argument("--out-dir", default=None)
+    p_bt.add_argument("--post-quali", action="store_true",
+                      help="Also condition on each round's quali and score the post-quali forecast "
+                           "against pre-weekend (Phase 2 gate); writes conditioning_log.csv")
+    p_bt.add_argument("--post-quali-chains", type=int, default=2)
     p_bt.set_defaults(func=cmd_backtest)
 
     return parser
