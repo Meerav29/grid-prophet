@@ -173,3 +173,20 @@ class TestHazardGrid:
         quali_pace = np.array([[0.9, 0.0, 0.4], [1.1, 0.0, 0.6]])
         assert list(_hazard_grid(None, quali_pace)) == [3.0, 1.0, 2.0]
         assert sorted(_hazard_grid(None, np.array([[0.3, 0.1, 0.2, 0.4]]))) == [1.0, 2.0, 3.0, 4.0]
+
+
+class TestQualiGrid:
+    def test_reads_quali_classification_and_ranks_unclassified_last(self):
+        from cli import _quali_grid_for_round
+        df = pd.DataFrame({
+            "season": 2026, "round": 1, "session_type": "Q",
+            "abbreviation": ["a", "b", "c"], "finish_position": [2.0, 1.0, np.nan],
+        })
+        assert list(_quali_grid_for_round(df, 2026, 1, ["a", "b", "c"])) == [2, 1, 3]
+
+    def test_raises_without_quali_rows(self):
+        from cli import _quali_grid_for_round
+        df = pd.DataFrame({"season": 2026, "round": 1, "session_type": "R",
+                           "abbreviation": ["a"], "finish_position": [1.0]})
+        with pytest.raises(ValueError):
+            _quali_grid_for_round(df, 2026, 1, ["a"])
