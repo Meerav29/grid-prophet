@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 800" width="960" height="800" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#52514e"/>
+    </marker>
+    <marker id="arrb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2a78d6"/>
+    </marker>
+  </defs>
+  <rect width="960" height="800" fill="#fcfcfb"/>
+
+  <text x="40" y="46" font-size="24" font-weight="700" fill="#0b0b0b">How the routines build Grid Prophet while I'm away</text>
+  <text x="40" y="70" font-size="13" fill="#52514e">Four cloud routines, one shared queue file, and a branch that keeps main untouched. Times are US Eastern, as designed on 2026-09-19.</text>
+
+  <!-- BUILD -->
+  <rect x="40" y="100" width="270" height="190" rx="10" fill="#fcfcfb" stroke="#2a78d6" stroke-width="2"/>
+  <text x="58" y="128" font-size="11" font-weight="700" fill="#2a78d6" letter-spacing="1.2">1 · BUILD · 09:07</text>
+  <rect x="58" y="142" width="234" height="64" rx="6" fill="#e9f1fb"/>
+  <text x="70" y="164" font-size="14" font-weight="700" fill="#0b0b0b">gp-build</text>
+  <text x="70" y="184" font-size="12" fill="#52514e">Sun / Tue / Thu · Opus</text>
+  <text x="70" y="199" font-size="11" fill="#52514e">next grid-prophet slice</text>
+  <rect x="58" y="214" width="234" height="64" rx="6" fill="#e9f1fb"/>
+  <text x="70" y="236" font-size="14" font-weight="700" fill="#0b0b0b">ap-build</text>
+  <text x="70" y="256" font-size="12" fill="#52514e">Mon / Wed / Fri · Opus</text>
+  <text x="70" y="271" font-size="11" fill="#52514e">next aperture slice</text>
+
+  <!-- REVIEW -->
+  <rect x="345" y="100" width="270" height="190" rx="10" fill="#fcfcfb" stroke="#eb6834" stroke-width="2"/>
+  <text x="363" y="128" font-size="11" font-weight="700" fill="#c4491a" letter-spacing="1.2">2 · REVIEW · 14:12 daily</text>
+  <text x="363" y="150" font-size="14" font-weight="700" fill="#0b0b0b">autopilot-review · Opus</text>
+  <text x="363" y="174" font-size="12" fill="#52514e">a separate agent, writes no code</text>
+  <text x="363" y="198" font-size="12" fill="#0b0b0b">• veto check: any "HOLD" comment</text>
+  <text x="363" y="216" font-size="12" fill="#0b0b0b">• CI green</text>
+  <text x="363" y="234" font-size="12" fill="#0b0b0b">• each criterion checked on the diff,</text>
+  <text x="363" y="250" font-size="12" fill="#0b0b0b">  not the PR body's claims</text>
+  <text x="363" y="268" font-size="12" fill="#0b0b0b">• 600-line cap, tests that fail without</text>
+
+  <!-- DIGEST -->
+  <rect x="650" y="100" width="270" height="190" rx="10" fill="#fcfcfb" stroke="#1baf7a" stroke-width="2"/>
+  <text x="668" y="128" font-size="11" font-weight="700" fill="#0f7a55" letter-spacing="1.2">3 · DIGEST · 19:23 daily</text>
+  <text x="668" y="150" font-size="14" font-weight="700" fill="#0b0b0b">autopilot-digest · Sonnet</text>
+  <text x="668" y="174" font-size="12" fill="#52514e">summarises, never decides</text>
+  <text x="668" y="198" font-size="12" fill="#0b0b0b">• what merged, what was held</text>
+  <text x="668" y="216" font-size="12" fill="#0b0b0b">• DECIDED FOR YOU: every call the</text>
+  <text x="668" y="232" font-size="12" fill="#0b0b0b">  spec left open, with the rejected option</text>
+  <text x="668" y="250" font-size="12" fill="#0b0b0b">• halts and blocked slices</text>
+  <text x="668" y="268" font-size="12" fill="#0b0b0b">→ email digest, readable on a phone</text>
+
+  <!-- arrows between stages -->
+  <line x1="312" y1="195" x2="343" y2="195" stroke="#52514e" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="617" y1="195" x2="648" y2="195" stroke="#52514e" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="327" y="186" font-size="10" fill="#52514e" text-anchor="middle">PR</text>
+  <text x="632" y="186" font-size="10" fill="#52514e" text-anchor="middle">result</text>
+
+  <!-- veto window bracket -->
+  <path d="M175 296 L175 312 L480 312 L480 296" fill="none" stroke="#52514e" stroke-width="1.5"/>
+  <text x="328" y="330" font-size="12" fill="#0b0b0b" text-anchor="middle" font-weight="600">~5 hour veto window: silence means proceed</text>
+
+  <!-- outcome chips -->
+  <g font-size="11" font-weight="600">
+    <rect x="380" y="344" width="64" height="22" rx="11" fill="#e6f6ef" stroke="#1baf7a"/><text x="412" y="359" text-anchor="middle" fill="#0f7a55">merged</text>
+    <rect x="452" y="344" width="52" height="22" rx="11" fill="#fdeee8" stroke="#eb6834"/><text x="478" y="359" text-anchor="middle" fill="#c4491a">held</text>
+    <rect x="512" y="344" width="64" height="22" rx="11" fill="#fdeee8" stroke="#eb6834"/><text x="544" y="359" text-anchor="middle" fill="#c4491a">blocked</text>
+  </g>
+  <text x="345" y="359" font-size="11" fill="#52514e" text-anchor="end" transform="translate(-6,0)">review outcomes:</text>
+
+  <!-- MEMORY band -->
+  <rect x="40" y="388" width="880" height="96" rx="10" fill="#f1f0ec" stroke="#c9c8c2"/>
+  <text x="58" y="412" font-size="11" font-weight="700" fill="#52514e" letter-spacing="1.2">SHARED MEMORY · every fire is a cold session, so these files are all the routines remember</text>
+  <text x="58" y="438" font-size="13" font-weight="700" fill="#0b0b0b">docs/autopilot/queue.md</text>
+  <text x="58" y="456" font-size="12" fill="#52514e">todo → in-progress → in-review → merged (or held / blocked)</text>
+  <text x="58" y="474" font-size="12" fill="#52514e">A build halts if the last slice isn't merged. Criteria live here.</text>
+  <text x="600" y="438" font-size="13" font-weight="700" fill="#0b0b0b">docs/autopilot/decisions.md</text>
+  <text x="600" y="456" font-size="12" fill="#52514e">Every design question the spec left open:</text>
+  <text x="600" y="474" font-size="12" fill="#52514e">what was chosen, what was rejected, how to undo it.</text>
+  <!-- dotted links to memory -->
+  <g stroke="#2a78d6" stroke-width="1.5" stroke-dasharray="3 3" fill="none">
+    <line x1="120" y1="292" x2="120" y2="386" marker-end="url(#arrb)"/>
+    <line x1="480" y1="368" x2="480" y2="386"/>
+    <line x1="780" y1="292" x2="780" y2="386"/>
+  </g>
+
+  <!-- BRANCH MODEL -->
+  <text x="40" y="520" font-size="11" font-weight="700" fill="#52514e" letter-spacing="1.2">BRANCH MODEL · main never moves during the window</text>
+  <line x1="40" y1="548" x2="920" y2="548" stroke="#0b0b0b" stroke-width="2"/>
+  <text x="40" y="540" font-size="12" font-weight="700" fill="#0b0b0b">main</text>
+  <circle cx="110" cy="548" r="5" fill="#0b0b0b"/><text x="118" y="540" font-size="10" fill="#52514e">setup commit</text>
+  <path d="M110 548 L150 590" stroke="#52514e" stroke-width="2" fill="none"/>
+  <line x1="150" y1="590" x2="760" y2="590" stroke="#2a78d6" stroke-width="2"/>
+  <text x="40" y="594" font-size="12" font-weight="700" fill="#2a78d6">auto/queue</text>
+  <g fill="#2a78d6">
+    <circle cx="300" cy="590" r="5"/><circle cx="420" cy="590" r="5"/><circle cx="540" cy="590" r="5"/><circle cx="660" cy="590" r="5"/>
+  </g>
+  <g font-size="10" fill="#52514e" text-anchor="middle">
+    <text x="300" y="578">slice-1 merged</text><text x="420" y="578">slice-2</text><text x="540" y="578">slice-3</text><text x="660" y="578">slice-4, 5, 6 …</text>
+  </g>
+  <path d="M300 590 L318 622 L380 622" stroke="#eb6834" stroke-width="1.5" fill="none"/>
+  <text x="386" y="626" font-size="10" fill="#52514e">auto/grid-prophet-slice-n-slug  (one PR each, stacked on the last)</text>
+  <path d="M760 590 Q840 590 868 552" stroke="#0b0b0b" stroke-width="2" fill="none" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+  <text x="848" y="612" font-size="11" font-weight="700" fill="#0b0b0b" text-anchor="middle">one PR, reviewed by me</text>
+
+  <!-- GUARDRAILS + OWNER -->
+  <rect x="40" y="650" width="430" height="124" rx="10" fill="#fcfcfb" stroke="#c9c8c2"/>
+  <text x="58" y="674" font-size="11" font-weight="700" fill="#c4491a" letter-spacing="1.2">GUARDRAILS</text>
+  <text x="58" y="696" font-size="12" fill="#0b0b0b">• never push to main, never force-push</text>
+  <text x="58" y="714" font-size="12" fill="#0b0b0b">• never edit CI workflows, AUTOPILOT.md or the crons</text>
+  <text x="58" y="732" font-size="12" fill="#0b0b0b">• two rejected slices in a row: that routine halts</text>
+  <text x="58" y="750" font-size="12" fill="#0b0b0b">• cannot verify what it cannot run: no fabricated evidence</text>
+
+  <rect x="490" y="650" width="430" height="124" rx="10" fill="#fcfcfb" stroke="#c9c8c2"/>
+  <text x="508" y="674" font-size="11" font-weight="700" fill="#2a78d6" letter-spacing="1.2">WHAT STAYS WITH ME</text>
+  <text x="508" y="696" font-size="12" fill="#0b0b0b">• the full backtest (2.7 hours, too slow to gate a PR)</text>
+  <text x="508" y="714" font-size="12" fill="#0b0b0b">• the auto/queue to main merge</text>
+  <text x="508" y="732" font-size="12" fill="#0b0b0b">• the real forecasts: gp fit, gp race --mode post-quali</text>
+  <text x="508" y="750" font-size="12" fill="#0b0b0b">• anything needing a real machine (aperture's host checks)</text>
+</svg>

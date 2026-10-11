@@ -180,3 +180,30 @@ class TestHoldOutRaceRound:
     def test_without_hold_out_the_race_rows_are_included(self):
         data = build_pace_data(_toy_driver_rounds(), through_season=2026, through_round=3)
         assert (data.race_round_idx == data.round_to_idx[(2026, 3)]).sum() == 4
+
+
+class TestConditionOnQualiHoldsOutTheForecastRound:
+    """`condition_on_quali` must pass `hold_out_race_round` to `build_pace_data`.
+    `build_pace_data`'s own holdout is tested above; nothing tested that the
+    caller supplies it, so deleting that one argument made the post-quali
+    backtest train on the race it forecasts and pass the Phase 2 gate on leaked
+    data with the whole suite green."""
+
+    def test_the_forecast_rounds_race_rows_are_held_out_of_the_conditioning_fit(
+            self, monkeypatch):
+        import model.conditioning as conditioning
+        import model.pace as pace
+
+        captured = {}
+        monkeypatch.setattr(pace, "build_pace_data",
+                            lambda *a, **kw: captured.update(kw) or "PACE_DATA")
+        monkeypatch.setattr(pace, "fit_nuts", lambda *a, **kw: "IDATA")
+        monkeypatch.setattr(conditioning, "warm_start_initvals", lambda prior, data: {})
+
+        idata, data, record = conditioning.condition_on_quali(
+            pd.DataFrame(), None, 2025, 7, prior_idata=None)
+
+        assert captured["hold_out_race_round"] == (2025, 7)
+        assert (captured["through_season"], captured["through_round"]) == (2025, 7)
+        assert (idata, data) == ("IDATA", "PACE_DATA")
+        assert record.path == WARM_START

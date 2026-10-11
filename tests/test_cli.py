@@ -178,6 +178,23 @@ class TestHazardGrid:
         assert sorted(_hazard_grid(None, np.array([[0.3, 0.1, 0.2, 0.4]]))) == [1.0, 2.0, 3.0, 4.0]
 
 
+class TestQualiGrid:
+    def test_reads_quali_classification_and_ranks_unclassified_last(self):
+        from cli import _quali_grid_for_round
+        df = pd.DataFrame({
+            "season": 2026, "round": 1, "session_type": "Q",
+            "abbreviation": ["a", "b", "c"], "finish_position": [2.0, 1.0, np.nan],
+        })
+        assert list(_quali_grid_for_round(df, 2026, 1, ["a", "b", "c"])) == [2, 1, 3]
+
+    def test_raises_without_quali_rows(self):
+        from cli import _quali_grid_for_round
+        df = pd.DataFrame({"season": 2026, "round": 1, "session_type": "R",
+                           "abbreviation": ["a"], "finish_position": [1.0]})
+        with pytest.raises(ValueError):
+            _quali_grid_for_round(df, 2026, 1, ["a"])
+
+
 # --- slice-6: the sprint path is wired, not just implemented ---------------
 #
 # `sim.race.sprint_inputs_from` can only price sec 3.2's first-lap spike if
@@ -306,3 +323,131 @@ class TestForecastWeekendWiresBothReliabilityChannels:
         captured, _gp, _sprint = self._run(monkeypatch)
         flat = captured["gp"].dnf_prob * SPRINT_DISTANCE_RATIO
         assert (captured["sprint"].dnf_prob > flat).all()
+
+
+class TestQualiGridRejectsUntrustworthyData:
+    """The helper must raise rather than turn bad quali data into a plausible
+    grid whose order came from CSV row order."""
+
+    @staticmethod
+    def _q(positions, abbreviations=("a", "b", "c"), rnd=1, season=2026):
+        return pd.DataFrame({
+            "season": season, "round": rnd, "session_type": "Q",
+            "abbreviation": list(abbreviations), "finish_position": list(positions),
+        })
+
+    def test_tied_positions_raise(self):
+        from cli import _quali_grid_for_round
+        with pytest.raises(ValueError, match="tied"):
+            _quali_grid_for_round(self._q([1.0, 1.0, 2.0]), 2026, 1, ["a", "b", "c"])
+
+    def test_non_positive_position_raises_rather_than_taking_pole(self):
+        from cli import _quali_grid_for_round
+        with pytest.raises(ValueError, match="non-positive"):
+            _quali_grid_for_round(self._q([0.0, 1.0, 2.0]), 2026, 1, ["a", "b", "c"])
+
+    def test_duplicate_driver_rows_raise(self):
+        from cli import _quali_grid_for_round
+        df = self._q([1.0, 2.0, 3.0], abbreviations=("a", "b", "b"))
+        with pytest.raises(ValueError, match="Duplicate"):
+            _quali_grid_for_round(df, 2026, 1, ["a", "b"])
+
+    def test_entrant_with_no_quali_row_raises_and_names_them(self):
+        from cli import _quali_grid_for_round
+        with pytest.raises(ValueError, match="'c'"):
+            _quali_grid_for_round(self._q([1.0, 2.0], abbreviations=("a", "b")), 2026, 1,
+                                   ["a", "b", "c"])
+
+    def test_other_rounds_and_seasons_are_ignored(self):
+        from cli import _quali_grid_for_round
+        df = pd.concat([self._q([1.0, 2.0, 3.0]),
+                        self._q([3.0, 2.0, 1.0], rnd=2),
+                        self._q([2.0, 3.0, 1.0], season=2025)])
+        assert list(_quali_grid_for_round(df, 2026, 1, ["a", "b", "c"])) == [1, 2, 3]
+
+
+class TestGridFromQualiIsWired:
+    """`--grid-from-quali` is two arguments deep (cmd_race -> forecast_weekend),
+    so a test on the helper alone would pass with either hop deleted -- the gap
+    PR #10's review flagged for slice-4. These run the real call path."""
+
+    CIRCUITS = TestForecastWeekendWiresBothReliabilityChannels.CIRCUITS
+
+    def _forecast(self, monkeypatch, **kwargs):
+        import cli
+        from model.reliability import build_reliability_data
+
+        calls = []
+        for name in ("_quali_grid_for_round", "_real_grid_for_round"):
+            real = getattr(cli, name)
+
+            def spy(*a, _real=real, _name=name, **kw):
+                calls.append((_name, kw.get("session_type", "R")))
+                return _real(*a, **kw)
+
+            monkeypatch.setattr(cli, name, spy)
+        driver_rounds = _sprint_weekend_rounds()
+        idata, data = _fake_fit(driver_rounds)
+        gp, sprint = forecast_weekend(
+            idata, data, build_reliability_data(driver_rounds), driver_rounds,
+            self.CIRCUITS, season=2024, round_=2, n_trials=200, seed=0, **kwargs)
+        return calls, gp, sprint
+
+    def test_flag_routes_the_grand_prix_grid_to_the_quali_classification(self, monkeypatch):
+        calls, gp, _ = self._forecast(monkeypatch, mode="post-quali", grid_from_quali=True)
+        assert ("_quali_grid_for_round", "R") in calls
+        assert ("_real_grid_for_round", "R") not in calls
+        assert set(gp["grid_source"]) == {"quali_classification"}
+
+    def test_flag_leaves_the_sprint_grid_on_the_sprint_rows(self, monkeypatch):
+        calls, _, sprint = self._forecast(monkeypatch, mode="post-quali", grid_from_quali=True)
+        assert ("_real_grid_for_round", "S") in calls
+        assert set(sprint["grid_source"]) == {"sprint_grid_position"}
+
+    def test_without_the_flag_the_race_grid_is_used(self, monkeypatch):
+        calls, gp, _ = self._forecast(monkeypatch, mode="post-quali")
+        assert ("_real_grid_for_round", "R") in calls
+        assert ("_quali_grid_for_round", "R") not in calls
+        assert set(gp["grid_source"]) == {"race_grid_position"}
+
+    def test_pre_weekend_forecast_is_labelled_simulated(self, monkeypatch):
+        calls, gp, _ = self._forecast(monkeypatch, mode="pre")
+        assert not [c for c in calls if c[1] == "R"]
+        assert set(gp["grid_source"]) == {"simulated"}
+
+    @staticmethod
+    def _race_args(**over):
+        base = dict(round=2, season=2024, mode="post-quali", fit_dir="fit", out_dir=None,
+                    n_trials=10, chains=1, seed=0, grid_from_quali=True)
+        base.update(over)
+        return types.SimpleNamespace(**base)
+
+    def test_cmd_race_refuses_the_flag_without_post_quali_mode(self, capsys):
+        import cli
+        with pytest.raises(SystemExit) as exc:
+            cli.cmd_race(self._race_args(mode="pre"))
+        assert exc.value.code == 2
+        assert "--grid-from-quali" in capsys.readouterr().err
+
+    def test_cmd_race_passes_the_flag_through_to_forecast_weekend(self, monkeypatch, tmp_path):
+        import cli
+        import model.conditioning as conditioning
+
+        seen = {}
+        monkeypatch.setattr(cli, "load_fit", lambda d: ("idata", "data", "rel", None))
+        monkeypatch.setattr(cli, "_load_driver_rounds", lambda: "driver_rounds")
+        monkeypatch.setattr(cli, "_load_driver_meta", lambda: None)
+        monkeypatch.setattr(cli, "_load_circuits", lambda: "circuits")
+        record = types.SimpleNamespace(path="warm_start", warm_start_s=1.0, total_s=1.0,
+                                       applied_target_s=120.0, regression=False)
+        monkeypatch.setattr(conditioning, "condition_on_quali",
+                            lambda *a, **kw: ("idata2", "data2", record))
+        monkeypatch.setattr(conditioning, "append_record", lambda path, rec: path)
+
+        def fake_forecast(*a, **kw):
+            seen.update(kw)
+            return pd.DataFrame({"driver": ["d1"]}), None
+
+        monkeypatch.setattr(cli, "forecast_weekend", fake_forecast)
+        cli.cmd_race(self._race_args(out_dir=str(tmp_path)))
+        assert seen["grid_from_quali"] is True and seen["mode"] == "post-quali"
