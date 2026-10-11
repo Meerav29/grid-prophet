@@ -13,7 +13,8 @@ Per simulated trial:
      per circuit from observed grid-to-finish changes and shrinks it toward
      the `data/circuits.csv` hand rating; circuits with no usable history
      still get the hand rating itself.
-  4. Draw DNFs (team-level mechanical hazard only, sec 3.2 first cut).
+  4. Draw DNFs against `inputs.dnf_prob`, which `model.reliability` folds
+     from sec 3.2's mechanical and incident channels.
   5. Order survivors by effective pace, convert to points via the points
      table.
 
@@ -21,9 +22,11 @@ A sprint weekend runs the same resolver twice (`simulate_weekend`, spec
 sec 3.4: "an extra shorter race event in the round, own points table,
 sharing the weekend's pace draw with the Grand Prix"). The two events share
 the trial's pace draw -- the same `race_pace` array object, not a second
-draw from the posterior -- and differ only in the three things a third of
+draw from the posterior -- and differ only in the things a third of
 the race distance actually changes: fewer laps to recover grid positions,
-fewer laps over which to break, and the sprint points table.
+fewer laps over which to break, a first lap that is not a third of anything
+(sec 3.2's incident spike, priced by `reliability.sprint_incident_exposure`),
+and the sprint points table.
 
 The Monte Carlo core (`simulate_positions`) is pure numpy, takes already-
 drawn per-trial pace/noise/dnf arrays, and is deterministic given a seeded
@@ -90,9 +93,17 @@ class RaceTrialInputs:
     race_noise_sigma: np.ndarray     # (n_trials,)
     quali_pace: np.ndarray           # (n_trials, n_drivers)
     quali_noise_sigma: np.ndarray    # (n_trials,)
-    dnf_prob: np.ndarray             # (n_trials, n_drivers) -- mechanical DNF probability
+    dnf_prob: np.ndarray             # (n_trials, n_drivers) -- P(retired), both channels
     overtaking_difficulty: float     # circuits.csv value, 1 (hard) .. ~5 (easy)
     grid: np.ndarray = None          # (n_drivers,) 1-indexed real grid, post-quali mode only
+    # The two sec 3.2 channels `dnf_prob` was folded from, carried alongside it
+    # because they do not shorten alike: a shorter event scales mechanical risk
+    # with distance and incident risk with the lap distribution (see
+    # `sprint_inputs_from`). `dnf_prob` stays what the resolver draws against,
+    # so a caller that has only the combined number leaves these None and gets
+    # the pre-slice-6 flat scaling.
+    mechanical_dnf_prob: np.ndarray = None   # (n_trials, n_drivers)
+    incident_dnf_prob: np.ndarray = None     # (n_trials, n_drivers)
 
 
 def simulate_positions(inputs: RaceTrialInputs, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
@@ -165,8 +176,18 @@ def sprint_inputs_from(inputs: RaceTrialInputs, grid: np.ndarray = None,
     make that true (and to keep it true) is for there to be exactly one
     array. Three things do change over a third of the distance:
 
-    * `dnf_prob` scales with distance -- a third of the running time is a
-      third of the exposure to a mechanical failure.
+    * `dnf_prob` shortens, but the two channels sec 3.2 folded it from do not
+      shorten alike. **Mechanical** risk scales with distance: a third of the
+      running time is a third of the exposure to a failure that is flat in lap
+      number. **Incident** risk does not, because a sprint still has a lap 1
+      and that is where sec 3.2 puts its spike -- so it scales by
+      `reliability.sprint_incident_exposure`, which reads the share off the
+      lap-of-retirement distribution (0.44 at the real sprint distance, against
+      a distance share of 0.33). Scaling the combined probability flat, as this
+      function did before slice-6, understated sprint retirements by about the
+      spike's share of the incident channel. A caller that supplies only
+      `dnf_prob` and neither channel still gets that flat scaling -- there is
+      nothing to price the spike against.
     * `overtaking_difficulty` scales with distance too, which makes the
       grid-lock penalty per slot 1/ratio times larger: the same circuit is
       harder to pass on when there are a third as many laps to do it in.
@@ -181,9 +202,24 @@ def sprint_inputs_from(inputs: RaceTrialInputs, grid: np.ndarray = None,
     """
     if not 0 < distance_ratio <= 1:
         raise ValueError(f"distance_ratio must be in (0, 1], got {distance_ratio}")
+    # Imported here, not at module scope: every other cross-package reference
+    # in this repo (cli, backtest) is a local import, and `sim` has not needed
+    # `model` until now. Once per weekend, not once per trial.
+    from model.reliability import combined_dnf_prob, sprint_incident_exposure
+
+    has_channels = inputs.mechanical_dnf_prob is not None and inputs.incident_dnf_prob is not None
+    if has_channels:
+        mechanical = inputs.mechanical_dnf_prob * distance_ratio
+        incident = inputs.incident_dnf_prob * sprint_incident_exposure(distance_ratio)
+        dnf_prob = combined_dnf_prob(mechanical, incident)
+    else:
+        mechanical = incident = None
+        dnf_prob = inputs.dnf_prob * distance_ratio
     return replace(
         inputs,
-        dnf_prob=inputs.dnf_prob * distance_ratio,
+        dnf_prob=dnf_prob,
+        mechanical_dnf_prob=mechanical,
+        incident_dnf_prob=incident,
         overtaking_difficulty=inputs.overtaking_difficulty * distance_ratio,
         grid=grid,
     )

@@ -92,12 +92,12 @@ class TestSampling:
 import os
 
 from model.reliability import (
-    DNF_STATUS_MAP_CSV, FLAGGED_LABEL_LEAN, FIRST_LAP_HAZARD_MULTIPLIER,
-    NOMINAL_RACE_LAPS, NOMINAL_SPRINT_LAPS, PRIOR_MEAN_INCIDENT,
-    RULE_CHANGE_WIDENING_DECAY_ROUNDS, channel_weights, combined_dnf_prob,
-    driver_incident_posterior, first_lap_incident_share, grid_band,
-    grid_multiplier, lap_of_retirement_pmf, load_label_policy,
-    sample_incident_dnf_prob,
+    CAUSELESS_RATIO_FLOOR, DNF_STATUS_MAP_CSV, FLAGGED_LABEL_LEAN,
+    FIRST_LAP_HAZARD_MULTIPLIER, NOMINAL_RACE_LAPS, NOMINAL_SPRINT_LAPS,
+    PRIOR_MEAN_INCIDENT, RULE_CHANGE_WIDENING_DECAY_ROUNDS, channel_weights,
+    combined_dnf_prob, driver_incident_posterior, first_lap_incident_share,
+    grid_band, grid_multiplier, lap_of_retirement_pmf, load_label_policy,
+    sample_incident_dnf_prob, sprint_incident_exposure,
 )
 
 FIXTURE_CSV = os.path.join(os.path.dirname(__file__), "..", "data", "driver_rounds_fixture.csv")
@@ -289,3 +289,98 @@ class TestLapOfRetirement:
     def test_bad_arguments_raise(self, channel, n_laps):
         with pytest.raises(ValueError):
             lap_of_retirement_pmf(channel, n_laps)
+
+
+# --- slice-6: the slice-3 carry-forwards ----------------------------------
+
+
+class TestCauselessSplitIsNeverAHardLabel:
+    """PR #8's first carry-forward. `channel_weights` splits a causeless flagged
+    row on the observable era's clean mechanical:incident ratio, and that ratio
+    is 0.0 or 1.0 when a fit window's clean labels all sit in one channel -- so
+    the flagged row booked weight 1.0 to a single channel, which is a clean
+    label in all but the bookkeeping. Sec 3.2's data-gap paragraph forbids
+    exactly that. Unreachable on the full 2018-2026 window; reachable through
+    the backtest's early `through_season` / `through_round` cutoffs.
+    """
+
+    def test_an_all_mechanical_clean_window_still_leaves_a_mixture(self):
+        w = channel_weights(_race_rows([("Engine", "mechanical"), ("Gearbox", "mechanical"),
+                                         ("Retired", "other")]))
+        m, i = w["w_mechanical"].iloc[2], w["w_incident"].iloc[2]
+        assert m == pytest.approx(1.0 - CAUSELESS_RATIO_FLOOR)
+        assert i == pytest.approx(CAUSELESS_RATIO_FLOOR)
+        assert 0.0 < m < 1.0 and 0.0 < i < 1.0 and m + i == pytest.approx(1.0)
+
+    def test_the_clamp_is_symmetric(self):
+        """An all-incident window is the same bug the other way up."""
+        w = channel_weights(_race_rows([("Accident", "incident"), ("Collision", "incident"),
+                                         ("Retired", "other")]))
+        assert w["w_incident"].iloc[2] == pytest.approx(1.0 - CAUSELESS_RATIO_FLOOR)
+        assert w["w_mechanical"].iloc[2] == pytest.approx(CAUSELESS_RATIO_FLOOR)
+
+    def test_a_lopsided_window_short_of_the_floor_keeps_its_own_ratio(self):
+        """The clamp is a floor, not a shrinkage: 18:1 is lopsided and left
+        alone, because the floor only binds past 19:1."""
+        specs = ([("Engine", "mechanical")] * 18 + [("Accident", "incident"),
+                                                     ("Retired", "other")])
+        w = channel_weights(_race_rows(specs))
+        assert w["w_mechanical"].iloc[-1] == pytest.approx(18 / 19)
+
+    def test_an_all_flagged_window_still_splits_evenly(self):
+        """No clean labels at all was already handled correctly, and stays so --
+        0.5 is not the floor applied twice."""
+        w = channel_weights(_race_rows([("Retired", "other"), ("Retired", "other")]))
+        assert list(w["w_mechanical"]) == pytest.approx([0.5, 0.5])
+        assert list(w["w_incident"]) == pytest.approx([0.5, 0.5])
+
+    def test_build_never_books_a_whole_retirement_to_one_channel(self):
+        """The production path, not just the weighting helper: this is the case
+        live in PR #8's own `test_build_makes_the_mixture_countable`, where the
+        single "Retired" row landed at `w_mechanical = 1.0`."""
+        data = build_reliability_data(
+            _race_rows([("Engine", "mechanical"), ("Retired", "other")]))
+        assert data.flagged_rows == 1
+        assert float(data.team_stats["incident_dnfs"].sum()) > 0.0
+        assert float(data.team_stats["mechanical_dnfs"].sum()) < 2.0
+
+
+class TestSprintIncidentExposure:
+    """PR #8's second carry-forward: the first-lap spike had no consumer. A
+    sprint is the opening third of a Grand Prix's laps, and lap 1 is the whole
+    point of the spike, so a sprint's incident exposure is not its distance
+    share."""
+
+    def test_a_sprint_carries_more_incident_risk_than_its_distance_share(self):
+        ratio = NOMINAL_SPRINT_LAPS / NOMINAL_RACE_LAPS
+        exposure = sprint_incident_exposure(ratio)
+        assert exposure > ratio
+        # 19 laps of a 57-lap profile whose lap 1 carries 12x the rest:
+        # (12 + 18) / (12 + 56).
+        assert exposure == pytest.approx(30 / 68)
+
+    def test_exposure_is_the_lap_pmf_summed_over_the_sprint_window(self):
+        """One definition of the spike in the codebase, not two."""
+        pmf = lap_of_retirement_pmf("incident", NOMINAL_RACE_LAPS)
+        assert sprint_incident_exposure(NOMINAL_SPRINT_LAPS / NOMINAL_RACE_LAPS) == pytest.approx(
+            pmf[:NOMINAL_SPRINT_LAPS].sum())
+
+    def test_the_real_sprint_distance_rounds_to_the_nominal_sprint_lap_count(self):
+        """100 km of 305 over 57 laps is 18.7 laps, which rounds to the 19 of
+        NOMINAL_SPRINT_LAPS -- the two constants agree rather than drifting."""
+        from sim.race import SPRINT_DISTANCE_RATIO
+        assert sprint_incident_exposure(SPRINT_DISTANCE_RATIO) == pytest.approx(
+            sprint_incident_exposure(NOMINAL_SPRINT_LAPS / NOMINAL_RACE_LAPS))
+
+    def test_a_full_distance_event_carries_all_of_the_risk(self):
+        assert sprint_incident_exposure(1.0) == pytest.approx(1.0)
+
+    def test_exposure_rises_with_distance_and_never_falls_below_lap_one(self):
+        shares = [sprint_incident_exposure(r) for r in (0.1, 0.3, 0.6, 1.0)]
+        assert shares == sorted(shares)
+        assert shares[0] >= first_lap_incident_share(NOMINAL_RACE_LAPS)
+
+    @pytest.mark.parametrize("bad", [0.0, -0.1, 1.5])
+    def test_bad_distance_ratio_raises(self, bad):
+        with pytest.raises(ValueError):
+            sprint_incident_exposure(bad)
