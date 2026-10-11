@@ -6,11 +6,14 @@ backtest of the Phase 2 code.
 
 ## Bottom line
 
-**Phase 2's backtest gate is cleared on the evidence the spec asks for, with
-the caveats below.** On a rolling 2022-2025 backtest (88 rounds, every-round
-grid, NUTS throughout), conditioning on quali improves race-winner log loss from
-1.801 to 1.258, the warm-start fallback fired in 0 of 88 rounds, and no round
-missed its time target.
+**The backtest clears the log-loss and fallback-rate parts of Phase 2's gate,
+with the caveats below.** On a rolling 2022-2025 backtest (88 rounds, one fit
+per round except each season's round 1, NUTS throughout), conditioning on quali
+improves race-winner log loss from 1.801 to 1.258, the warm-start fallback fired
+in 0 of 88 rounds, and no round missed its time target. Spec §8's gate also asks
+for sprint points that reconcile with actual standings; that is covered by the
+slice-2 unit test, not by this backtest. It is a single run with no confidence
+interval, so read "cleared" as "no evidence against", not as proof.
 
 What this document does *not* claim: that each Phase 2 slice improved the
 forecast on its own. The backtest measures post-quali against pre-weekend. It
@@ -18,8 +21,9 @@ does not ablate sprints, the reliability split, weather or the overtaking fit.
 
 ## What was built
 
-Slices 1-5 were built by the autopilot routines (`docs/autopilot/queue.md`) and
-merged to `main` via PR #13. Slice 6 was merged separately as PR #14.
+Slices 1-5 were built by the autopilot routines (`docs/autopilot/queue.md`),
+merged into the `auto/queue` branch, and reached `main` via PR #13. Slice 6 was
+merged into `auto/queue` as PR #14 on 2026-10-03 and reached `main` via PR #16.
 
 | Spec item | Slice | Status |
 |---|---|---|
@@ -41,11 +45,20 @@ The backtest harness gained a post-quali arm for this run (`gp backtest
 metrics, writes every round's conditioning record to `conditioning_log.csv`, and
 adds the paired comparison and fallback counts to `backtest_summary.json`.
 
+After this run, review found that a round whose conditioning or forecast failed
+was printed and then dropped from every count. The summary now also reports
+`n_postquali_attempted`, `n_postquali_failed` and `postquali_failed_rounds`, and
+reports the gate verdict as `null` (with `gate_valid: false` and the reasons)
+when `--rounds` is not `all` or any attempted round failed. The numbers below
+predate that change. All 88 scored rounds have a post-quali score, so none of
+them failed, but the summary could not have said so at the time. `conditioning_log.csv` is now cleared at the start of each run
+instead of appended to across runs.
+
 ## Data
 
 `data/driver_rounds.csv` is gitignored and was regenerated for this run:
-8,189 rows, 2018-2026 (2026 through round 16), 44 drivers in
-`driver_meta.csv`. The clean-air filter reproduces Phase 0: median clean-air lap
+8,189 rows, 2018-2026 (2026 through round 16, as of this run; it has since been
+refreshed with round 17's quali and sprint), 44 drivers in `driver_meta.csv`. The clean-air filter reproduces Phase 0: median clean-air lap
 against quali gap gives Spearman 0.630 on dry, classified rows (Phase 0: ~0.64).
 
 One round needed a manual repair. **2025 R6 (Miami)** has no quali times
@@ -101,9 +114,10 @@ gain is small.
 | Warm-start time, mean / max | 72.8s / 108.7s (target 120s) |
 
 By season, mean warm-start time was 49s (2022), 79s (2023), 93s (2024) and 69s
-(2025). Time rises with the amount of data in the fit window, not with
-early-versus-late season: rounds 1-6 averaged 62s and later rounds 76s. Nine
-rounds ran over 100s, so the 120s target has about 10% headroom at the slow end
+(2025). Mean time varied by season (49-93s) and did not rise steadily with the
+amount of data in the fit window; this run did not isolate why. Rounds 2-6
+averaged 62s and later rounds 76s (round 1 is never fitted). Nine rounds ran
+over 100s, so the 120s target has about 10% headroom at the slow end
 on this machine.
 
 §6 says a high fallback rate means the warm start needs revisiting. A rate of
@@ -118,8 +132,11 @@ never run in anger.
    better on average and worse in 13 rounds, some badly: 2022 R13 (1.51 → 3.90),
    2022 R14 (1.57 → 3.81), 2024 R21 (2.18 → 3.75). Those are rounds where the
    real grid pointed confidently at someone who then did not win. The mean hides
-   this. Calibration was not re-checked for post-quali, and Phase 1's
-   overconfidence at the back of the field may be larger here.
+   this. Calibration was not re-checked for post-quali. For the pre-weekend model
+   the calibration data (`calibration_podium.csv`) shows it is too generous at
+   the back (predicts ~3% podium chances that happen ~0.5% of the time) and too
+   timid at the front (the 0.5-0.6 bin, only 27 driver-rounds, happens ~78%);
+   whether post-quali shares that shape is unknown.
 2. **The size of the gain is mostly the grid.** Knowing the grid is a strong
    signal on its own; pole-wins is a weak baseline only because it is scored as
    a hard 0/1. Do not read 0.54 nats as the value of the warm-started refit

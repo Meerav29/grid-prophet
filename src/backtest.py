@@ -251,22 +251,53 @@ def _calibration_bins(forecast: pd.DataFrame, actual: pd.DataFrame, col: str, th
 POST_QUALI_METRICS = ("log_loss_winner", "brier_podium", "brier_points", "spearman")
 
 
-def post_quali_summary(metrics_df: pd.DataFrame, conditioning_log: pd.DataFrame) -> dict:
+def post_quali_summary(metrics_df: pd.DataFrame, conditioning_log: pd.DataFrame,
+                        rounds_mode: str = "all") -> dict:
     """Phase 2's gate in numbers (spec sec 8): does conditioning on quali beat
     the pre-weekend forecast on the *same* rounds, and how often did the warm
     start fall back (spec sec 6: a high rate is a signal, not something to
-    absorb). Pre and post means are taken over rounds that have both, so a
-    round that failed to condition cannot flatter either side."""
+    absorb). Log-loss means are taken over rounds that have a post-quali score,
+    so a round that failed to condition cannot flatter either side.
+
+    Every attempted round is accounted for: `n_postquali_attempted`,
+    `n_postquali_failed` and `postquali_failed_rounds` come from each round's
+    `postquali_status`, because a round that failed never reaches the
+    conditioning log and would otherwise vanish from `fallback_rate` and
+    `n_regressions`. The gate verdict is only reported as a real boolean when
+    it is valid -- `rounds_mode == "all"` and no attempted round failed;
+    otherwise it is None and `gate_invalid_reasons` says why."""
     out: dict = {}
-    both = metrics_df.dropna(subset=["log_loss_winner_postquali"])         if "log_loss_winner_postquali" in metrics_df.columns else metrics_df.iloc[0:0]
+    scored_col = "log_loss_winner_postquali"
+    both = (metrics_df.dropna(subset=[scored_col]) if scored_col in metrics_df.columns
+            else metrics_df.iloc[0:0])
     out["n_rounds_scored_postquali"] = len(both)
+
+    failed = []
+    if "postquali_status" in metrics_df.columns:
+        attempted = metrics_df[metrics_df["postquali_status"].notna()]
+        bad = attempted[attempted["postquali_status"] != "ok"]
+        failed = [f"{int(r.season)}:{int(r.round)} ({r.postquali_status})" for r in bad.itertuples()]
+        out["n_postquali_attempted"] = len(attempted)
+        out["n_postquali_failed"] = len(bad)
+        out["postquali_failed_rounds"] = failed
+
     if len(both):
         for m in POST_QUALI_METRICS:
             out[f"mean_{m}_pre_paired"] = float(both[f"{m}_model"].mean())
             out[f"mean_{m}_postquali"] = float(both[f"{m}_postquali"].mean())
         out["postquali_log_loss_delta"] = (out["mean_log_loss_winner_postquali"]
                                            - out["mean_log_loss_winner_pre_paired"])
-        out["postquali_beats_pre_log_loss"] = out["postquali_log_loss_delta"] < 0
+        reasons = []
+        if rounds_mode != "all":
+            reasons.append(f"rounds_mode={rounds_mode}: the pre forecast comes from a stale "
+                           "posterior, so the delta mixes data freshness with conditioning")
+        if failed:
+            reasons.append(f"{len(failed)} attempted round(s) failed and are missing from the "
+                           "paired means")
+        out["gate_valid"] = not reasons
+        out["gate_invalid_reasons"] = reasons
+        out["postquali_beats_pre_log_loss"] = (bool(out["postquali_log_loss_delta"] < 0)
+                                               if not reasons else None)
     if len(conditioning_log):
         from model.conditioning import fallback_rate, regressions
         out["fallback_rate"] = fallback_rate(conditioning_log)
@@ -280,9 +311,11 @@ def _post_quali_arm(prior_idata, driver_rounds, driver_meta, circuits, reliabili
                      season: int, round_: int, n_trials: int, chains: int,
                      conditioning_records: list, outdir: str) -> dict:
     """Condition on round `round_`'s quali (warm-started NUTS, spec sec 6),
-    forecast from the real grid, score it. Returns `*_postquali` metric keys,
-    or {} when conditioning/forecasting fails -- the failure is printed and the
-    round simply has no post-quali score, never a silent zero."""
+    forecast from the real grid, score it. Always returns a `postquali_status`
+    -- "ok" with the `*_postquali` metric keys, or "conditioning_failed" /
+    "forecast_failed" / "unscored" with nothing else. A failure is printed and
+    counted by `post_quali_summary`; the round has no post-quali score, never a
+    silent zero. Only a round that conditioned writes a conditioning record."""
     from dataclasses import asdict
     from cli import forecast_race
     from model.conditioning import append_record, condition_on_quali
@@ -293,7 +326,7 @@ def _post_quali_arm(prior_idata, driver_rounds, driver_meta, circuits, reliabili
         )
     except Exception as exc:
         print(f"    WARNING: post-quali conditioning failed for {season}:{round_}: {exc}")
-        return {}
+        return {"postquali_status": "conditioning_failed"}
     conditioning_records.append(asdict(record))
     append_record(os.path.join(outdir, "conditioning_log.csv"), record)
     print(f"    post-quali {season}:{round_} path={record.path} total={record.total_s:.1f}s"
@@ -303,11 +336,14 @@ def _post_quali_arm(prior_idata, driver_rounds, driver_meta, circuits, reliabili
                                   round_, n_trials=n_trials, seed=round_, mode="post-quali")
     except Exception as exc:
         print(f"    WARNING: post-quali forecast failed for {season}:{round_}: {exc}")
-        return {}
+        return {"postquali_status": "forecast_failed"}
     scored = score_round(forecast, driver_rounds, season, round_)
     if scored is None:
-        return {}
-    return {f"{m}_postquali": scored[f"{m}_model"] for m in POST_QUALI_METRICS}
+        print(f"    WARNING: post-quali forecast for {season}:{round_} could not be scored")
+        return {"postquali_status": "unscored"}
+    out = {f"{m}_postquali": scored[f"{m}_model"] for m in POST_QUALI_METRICS}
+    out["postquali_status"] = "ok"
+    return out
 
 
 def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
@@ -330,10 +366,18 @@ def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     outdir = out_dir or os.path.join(OUTPUTS_DIR, f"backtest_{ts}")
+    if post_quali:
+        # the log is appended to per round; a reused --out-dir would otherwise
+        # mix an earlier run's records into this run's counts
+        os.makedirs(outdir, exist_ok=True)
+        stale_log = os.path.join(outdir, "conditioning_log.csv")
+        if os.path.exists(stale_log):
+            os.remove(stale_log)
     if post_quali and rounds == "coarse":
         print("[backtest] WARNING: --post-quali with --rounds coarse compares a conditioned "
               "refit through round rr against a pre forecast from a stale posterior, so the "
-              "delta mixes data freshness with conditioning. Use --rounds all for the gate.")
+              "delta mixes data freshness with conditioning. Use --rounds all for the gate "
+              "(the summary will report the gate as invalid).")
 
     for season in seasons:
         season_rounds = sorted(driver_rounds[(driver_rounds["season"] == season) &
@@ -454,7 +498,8 @@ def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
             })
     if post_quali:
         summary["post_quali"] = True
-        summary.update(post_quali_summary(metrics_df, pd.DataFrame(conditioning_records)))
+        summary.update(post_quali_summary(metrics_df, pd.DataFrame(conditioning_records),
+                                          rounds_mode=rounds))
     with open(os.path.join(outdir, "backtest_summary.json"), "w") as f:
         json.dump(summary, f, indent=2)
 

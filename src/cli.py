@@ -206,17 +206,39 @@ def _real_grid_for_round(driver_rounds: pd.DataFrame, season: int, round_: int,
 
 def _quali_grid_for_round(driver_rounds: pd.DataFrame, season: int, round_: int,
                            driver_ids: list) -> np.ndarray:
-    """Starting grid read from the quali classification, for a round whose race
-    has not run yet (so no `grid_position` exists to read). Opt-in via
-    `gp race --grid-from-quali`: it does NOT reflect grid penalties or pit-lane
-    starts, which only appear on the race rows. A driver with no quali
-    classification ranks to the back. Raises if the round has no quali rows."""
+    """Grand Prix starting grid read from the quali classification, for a round
+    whose race has not run yet (so no `grid_position` exists to read). Opt-in via
+    `gp race --mode post-quali --grid-from-quali`: it does NOT reflect grid
+    penalties or pit-lane starts, which only appear on the race rows, and it
+    leaves a sprint weekend's sprint grid alone (that still comes from the S
+    rows). A driver with no quali classification (NaN position) ranks to the
+    back.
+
+    Raises rather than guessing when the classification cannot be trusted: no Q
+    rows, an entrant with no Q row at all, a duplicated driver, a tied or
+    non-positive position. Any of those would otherwise produce a valid-looking
+    1..n grid whose order came from CSV row order."""
     rows = driver_rounds[(driver_rounds["season"] == season) & (driver_rounds["round"] == round_)
                           & (driver_rounds["session_type"] == "Q")]
+    where = f"{season}:{round_}"
+    if rows.empty:
+        raise ValueError(f"No quali classification for {where}; "
+                          "--grid-from-quali needs a completed quali session.")
+    dupes = sorted(rows.loc[rows["abbreviation"].duplicated(), "abbreviation"].unique())
+    if dupes:
+        raise ValueError(f"Duplicate quali rows for {dupes} in {where}; fix the data first.")
+    missing = [d for d in driver_ids if d not in set(rows["abbreviation"])]
+    if missing:
+        raise ValueError(f"No quali row for {missing} in {where}; the grid would put them "
+                          "at the back in arbitrary order.")
+    positions = rows["finish_position"].dropna()
+    if (positions <= 0).any() or positions.duplicated().any():
+        raise ValueError(f"Quali positions for {where} are tied or non-positive; "
+                          "cannot rank a grid from them.")
     by_driver = dict(zip(rows["abbreviation"], rows["finish_position"]))
-    values = pd.Series([by_driver.get(d) for d in driver_ids], dtype="float64")
-    if rows.empty or values.isna().all():
-        raise ValueError(f"No quali classification for {season}:{round_}; "
+    values = pd.Series([by_driver[d] for d in driver_ids], dtype="float64")
+    if values.isna().all():
+        raise ValueError(f"No quali classification for {where}; "
                           "--grid-from-quali needs a completed quali session.")
     return values.rank(method="first", na_option="bottom").to_numpy(dtype=int)
 
@@ -290,12 +312,15 @@ def forecast_weekend(idata, data, reliability_data, driver_rounds: pd.DataFrame,
     teams = entrants["team"].tolist()
     n_drivers = len(driver_ids)
     grid = None
+    grid_source = "simulated"
     if mode == "post-quali":
         if grid_from_quali:
+            grid_source = "quali_classification"
             grid = _quali_grid_for_round(driver_rounds, season, round_, driver_ids)
             print(f"  WARNING: grid read from the quali classification for {season}:{round_}; "
                   "grid penalties and pit-lane starts are not reflected.", file=sys.stderr)
         else:
+            grid_source = "race_grid_position"
             grid = _real_grid_for_round(driver_rounds, season, round_, driver_ids)
 
     has_sprint = _round_has_sprint(driver_rounds, season, round_)
@@ -362,10 +387,14 @@ def forecast_weekend(idata, data, reliability_data, driver_rounds: pd.DataFrame,
     outcome = simulate_weekend(inputs, rng, has_sprint=has_sprint, sprint_grid=sprint_grid)
     grand_prix = summarize_trials(outcome.positions, outcome.dnf, driver_ids, teams,
                                    load_points_table("grand_prix", season))
+    # which grid produced the forecast, so a saved CSV can't be mistaken for one
+    # built from the real (penalty-adjusted) starting order
+    grand_prix["grid_source"] = grid_source
     if not outcome.has_sprint:
         return grand_prix, None
     sprint = summarize_trials(outcome.sprint_positions, outcome.sprint_dnf, driver_ids, teams,
                                load_points_table("sprint", season))
+    sprint["grid_source"] = "sprint_grid_position" if sprint_grid is not None else "simulated"
     return grand_prix, sprint
 
 
@@ -377,6 +406,10 @@ def forecast_race(*args, **kwargs) -> pd.DataFrame:
 
 
 def cmd_race(args):
+    if args.grid_from_quali and args.mode != "post-quali":
+        print("--grid-from-quali only applies to --mode post-quali; refusing to run a "
+              "pre-weekend forecast that would ignore it.", file=sys.stderr)
+        sys.exit(2)
     fit_dir = args.fit_dir
     if fit_dir is None:
         if not os.path.exists(LATEST_POINTER):
@@ -475,8 +508,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_race.add_argument("--chains", type=int, default=2, help="chains for the post-quali refit")
     p_race.add_argument("--seed", type=int, default=0)
     p_race.add_argument("--grid-from-quali", action="store_true",
-                        help="post-quali before the race has run: take the grid from the quali "
-                             "classification (ignores grid penalties)")
+                        help="with --mode post-quali, before the race has run: take the Grand Prix "
+                             "grid from the quali classification (ignores grid penalties and "
+                             "pit-lane starts; a sprint's own grid is unaffected)")
     p_race.set_defaults(func=cmd_race)
 
     p_bt = sub.add_parser("backtest", help="Rolling backtest (spec sec 7)")
@@ -489,7 +523,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt.add_argument("--post-quali", action="store_true",
                       help="Also condition on each round's quali and score the post-quali forecast "
                            "against pre-weekend (Phase 2 gate); writes conditioning_log.csv")
-    p_bt.add_argument("--post-quali-chains", type=int, default=2)
+    p_bt.add_argument("--post-quali-chains", type=int, default=2,
+                      help="chains for each round's post-quali conditioning refit")
     p_bt.set_defaults(func=cmd_backtest)
 
     return parser
