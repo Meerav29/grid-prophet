@@ -1,47 +1,50 @@
-# Autopilot ran while you were away
+# Autopilot: window 2, Oct 20-26, 2026
 
-**Window: 2026-09-20 → 2026-09-25. Read this before you touch anything else.**
+**Read this before you touch anything else.** Scheduled cloud routines are building slices 7-10 from [docs/autopilot/queue.md](docs/autopilot/queue.md) while Meerav is travelling. They open PRs against `auto/queue`, and a separate review routine merges the ones that pass.
 
-While you were away, scheduled cloud routines built slices from
-[docs/autopilot/queue.md](docs/autopilot/queue.md), opened PRs, and merged the
-ones that passed CI and review.
+**`main` does not move.** `auto/queue` was fast-forwarded to `main` at `303e957` on Oct 20, so everything after that point is autopilot work.
 
-**None of it is on `main`.** Everything landed on the `auto/queue` branch.
-`main` has only the setup commit that added this file, CI, and the queue.
+## What's queued
 
-## Review this in order
+| Day (ET) | Slice |
+|---|---|
+| Tue Oct 20 (4pm, one-off) | 7: Phase 2 carry-forwards (overtaking call-site test, per-circuit fit, Miami quali fallback) |
+| Wed Oct 21 | 8: season chaining and `gp season` |
+| Fri Oct 23 | 9: season-level backtest harness (built and tested on the fixture, **not run**) |
+| **Sat Oct 24, 8pm** | **US GP (2026 R18) post-quali forecast.** One-off, runs from the `forecast-data` branch and posts to #19 |
+| Sun Oct 25 | 10: post-quali calibration |
 
-1. **[docs/autopilot/decisions.md](docs/autopilot/decisions.md)** — every design
-   call a routine made on your behalf because the spec did not settle it, with
-   the alternative it rejected. This is the highest-value page. Read it first.
-2. **The `auto/queue` → `main` pull request.** One diff, all merged slices.
-3. **The tracking issue** `Autopilot run log — 2026-09-20 to 09-25` — daily
-   digests, halts, and anything blocked or vetoed.
-4. **Any still-open PR** against `auto/queue` — these were rejected or held and
-   never merged.
+Builds run around 9am ET, review around 2pm ET, and the digest around 7pm ET. Tuesday's one-off build gets a one-off 9pm review so Wednesday doesn't halt.
+
+## Review in this order when you're back
+
+1. **[docs/autopilot/decisions.md](docs/autopilot/decisions.md)**: entries dated 2026-10-20 or later.
+2. **The tracking issue, [#19](https://github.com/Meerav29/grid-prophet/issues/19)**: digests, halts, and the US GP forecast.
+3. **Any PR still open against `auto/queue`.** These were held or rejected.
+4. **The `auto/queue` → `main` diff.**
 
 ## The thing to be skeptical about
 
-Slices merged on the unit suite (about two minutes) plus reviewer judgment.
-They did **not** merge on Phase 2's actual "done when" bar from
-[the v2 spec](docs/grid-prophet-v2-spec.md) §8, which needs the full rolling
-backtest — up to two hours per §7, too slow for CI.
+Same as window 1: slices merge on unit tests and review, not on the backtest. Slice 9 *builds* the Phase 3 season-level backtest. It doesn't *run* it. **Phase 3 isn't passed until you run it** (the command is in slice 9's PR). Don't retire `confidence.py` or the pkl before then.
 
-So it is entirely possible that three slices of plausible, well-tested code do
-not improve log loss at all. **Run the backtest before you believe any of it.**
-That is the real gate, and it is why this work is on a branch.
+The US GP forecast is the first forecast made without you there. It used a model fitted in the cloud from a data snapshot on the `forecast-data` branch, plus R18 quali fetched on the day. Check its PR or comment for the commands it ran.
 
-If the backtest says no, delete `auto/queue`. `main` never moved.
+## The `forecast-data` branch
+
+It holds `data/driver_rounds.csv` (through 2026 R17) and `data/driver_meta.csv`, force-added because `data/` is gitignored. It exists only so the cloud forecast doesn't re-collect 2018-2026 against FastF1's rate limit. **Never merge it into `main`.**
+
+## If you're asking a cloud session to do something here
+
+- Read [CLAUDE.md](CLAUDE.md).
+- To continue autopilot work, branch from `auto/queue`. If a slice's PR is open, comment on it rather than pushing to its branch, unless you mean to take it over. In that case comment `HOLD` first so the review routine leaves it alone.
+- To make a forecast, use the `forecast-data` branch.
 
 ## Stopping it
 
-Routines are disabled from Claude Code (`RemoteTrigger` update,
-`enabled: false`). Permanent deletion is the web UI at
-<https://claude.ai/code/routines> — Claude Code cannot delete them.
+Comment `HOLD` on a PR to stop that slice. To stop the routines: `RemoteTrigger` update with `enabled: false` (IDs are in Meerav's Claude memory, not in git), or the web UI at <https://claude.ai/code/routines>.
 
-## How it was set up
+---
 
-[docs/superpowers/specs/2026-09-19-autopilot-design.md](docs/superpowers/specs/2026-09-19-autopilot-design.md)
-is the design, including the branch model, the review contract, the
-prohibitions, and the reasoning behind each. The same design governs the
-`aperture` repo, which ran on the alternating days.
+Window 1 (Sep 20 → Oct 4) built slices 1-6. All six were merged to `main` via PRs #13 and #16, and the Phase 2 backtest result is in [docs/phase2-status.md](docs/phase2-status.md). Its run log is issue #4.
+
+Design, branch model, review contract, PR template: [docs/superpowers/specs/2026-09-19-autopilot-design.md](docs/superpowers/specs/2026-09-19-autopilot-design.md).

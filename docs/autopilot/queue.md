@@ -1,7 +1,7 @@
 # Autopilot queue — grid-prophet
 
 Design: [2026-09-19-autopilot-design.md](../superpowers/specs/2026-09-19-autopilot-design.md)
-Rotation: Sun / Tue / Thu, plus Fri / Sat for the Oct 2-4 race weekend (merge by Sat 20:00 ET). Base branch: `auto/queue`. Window: 2026-09-20 → 09-25.
+Rotation (window 2): Tue Oct 20 (one-off, evening), Wed Oct 21, Fri Oct 23, Sun Oct 25. Base branch: `auto/queue`. Window 2: 2026-10-20 → 10-26, tracking issue #19. (Window 1 was 2026-09-20 → 10-04, tracking issue #4: slices 1-6 below, all merged.)
 
 These slices decompose **Phase 2** of [the v2 spec](../grid-prophet-v2-spec.md) §8.
 Phase 2 is scoped at two weeks and roughly six PRs; slices 1–3 were built in the original window. Slices 4–6 below were queued
@@ -318,3 +318,113 @@ Acceptance:
 Out of scope: any new data source for post-2023 retirement causes (owner's call).
 If the sprint rewrite would exceed the 600-line cap, ship the clamp alone and
 leave the sprint half as a `todo` follow-up in this file.
+
+---
+
+# Window 2: 2026-10-20 → 10-26
+
+Phase 2 is closed on the owner's backtest (`docs/phase2-status.md`). Window 2
+takes the Phase 2 carry-forwards, then the code half of **Phase 3** (spec §8:
+season chaining, both championships, the season-level backtest). The same rule
+applies as before: **routines build and unit-test, the owner runs the real
+backtest.** `data/driver_rounds.csv` is gitignored and not in the sandbox. Use
+`data/driver_rounds_fixture.csv` and synthetic data. Retiring `confidence.py`
+and the pkl is **out of scope**: spec §8 makes it conditional on a Phase 3
+backtest pass that only the owner can run.
+
+`auto/queue` was fast-forwarded to `main` (`303e957`) on 2026-10-20, so it
+includes `--grid-from-quali` and the post-quali backtest arm.
+
+## slice-7: Phase 2 carry-forwards
+
+Status: todo
+
+Spec: `docs/phase2-status.md` "What is still open"; slice-4 notes above.
+
+Acceptance:
+
+- [ ] A test fails if `build_overtaking_data` is removed from **either**
+      production call site (`cli.forecast_weekend`,
+      `backtest.forecast_race_challenger`). For example, assert that the forecast
+      differs with and without a fitted circuit on a fixture where the fit
+      departs from the hand rating.
+- [ ] The overtaking fit is computed for the forecast round's circuit only, or
+      the full fit is cached per pre-round window. Either way, a test shows that
+      the number of circuits fitted per forecast call no longer scales with the
+      number of circuits in the window.
+- [ ] `collect_v2` falls back to each driver's fastest session lap when a
+      quali results row has positions but empty Q1/Q2/Q3 (the 2025 Miami case).
+      It flags the fallback in the row or the log, and is tested with a mocked
+      FastF1 session. No network in tests.
+- [ ] Existing tests still pass. New behavior has tests that fail without it.
+
+## slice-8: season chaining and `gp season`
+
+Status: todo
+
+Spec: `docs/grid-prophet-v2-spec.md` §3.4, §6 (`gp season`, the two
+championship CSVs), §8 Phase 3.
+
+Acceptance:
+
+- [ ] Within one trial, rounds r+1..R are simulated in sequence, **carrying
+      the team random walk forward** so car strength wanders and the wander
+      compounds. A test on a synthetic posterior shows that the spread of a
+      late-round team pace draw is wider than an early-round one.
+- [ ] Sprints are included where the calendar has them, with their own points
+      table, sharing the weekend pace draw (reuse `simulate_weekend`).
+- [ ] Drivers' and constructors' totals come from the **same trials**. A test
+      checks that per-trial constructor points equal the sum of that team's
+      drivers' points.
+- [ ] `gp season` writes `drivers_championship.csv` and
+      `constructors_championship.csv` with the §6 columns. Current points
+      are taken from rounds already run.
+- [ ] The remaining calendar comes from FastF1's event schedule, through a
+      seam that tests can stub. If the schedule can't be read, the command
+      fails with a clear message. It never invents a calendar.
+- [ ] If this goes over 600 lines, build the simulation and its tests only,
+      leave the CLI wiring for a follow-up, and say so in the PR.
+
+## slice-9: season-level backtest harness
+
+Status: todo
+
+Spec: §7 season-level metrics, §8 Phase 3, §4 (legacy benchmark).
+
+Acceptance:
+
+- [ ] `gp backtest --season-level` (or a subcommand) fits at cutoffs after
+      rounds 2, 6 and 12 of each held-out season and chains the rest of the
+      season with slice-8's simulator.
+- [ ] Writes constructor-share Spearman per cutoff next to the legacy
+      model's number at the matching cutoff, Brier for the drivers' and
+      constructors' title winner, and coverage of the 80% intervals on
+      final points.
+- [ ] `backtest_summary.json` gets a season-level block with the same
+      `gate_valid` / `null`-verdict discipline as the post-quali arm.
+      Partial runs or failed cutoffs can't report a verdict.
+- [ ] Tested end-to-end on `data/driver_rounds_fixture.csv` with ADVI and
+      tiny draw counts (seconds, not minutes). **Do not run the real
+      backtest.** The PR's review pack gives the exact command for the owner
+      to run.
+
+## slice-10: post-quali calibration
+
+Status: todo
+
+Spec: `docs/phase2-status.md` caveat 1 ("Calibration was not re-checked for
+post-quali").
+
+Acceptance:
+
+- [ ] The post-quali arm writes its own `calibration_podium_postquali.csv`
+      in the same shape as the pre-weekend file.
+- [ ] The summary reports, for both arms, a binned calibration table and an
+      expected calibration error (or similar single number, defined in the
+      PR), so the owner can compare the two arms from one file.
+- [ ] Rounds where post-quali log loss is worse than pre-weekend by more than
+      a stated threshold are listed with their grid-pole driver and actual
+      winner. This is the raw material for the "do the confident misses share
+      a cause" question. Listing only; no diagnosis claimed.
+- [ ] Tested on the fixture. No full backtest run.
+
