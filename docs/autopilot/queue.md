@@ -337,7 +337,26 @@ includes `--grid-from-quali` and the post-quali backtest arm.
 
 ## slice-7: Phase 2 carry-forwards
 
-Status: in-review (PR #20)
+Status: merged — PR #20 merged by the review routine 2026-10-20 (`b14a307`).
+
+All four criteria were verified against the diff rather than against the PR
+body. CI (`test`) was green on `3bd3b22`; the diff is 403 lines, inside the
+600-line review cap. The review re-ran the full suite on the PR head
+independently (Python 3.13, pymc 6.3.2, arviz 1.3.0): 297 passed. Five of the
+PR's seven mutations were re-applied independently and each reproduced its
+stated failure count: cli call site 3, backtest call site 3, `event_name`
+ignored 6, no laps fallback 5, deleted laps counted 3. Nothing in the body was
+found overstated.
+
+The backtest has not been run against this slice. `TestSingleCircuitFit`
+asserts that the one-circuit fit equals that circuit's entry in the full fit, so
+no forecast number should move. The Miami fallback is tested only against a
+mocked session. Whether `repair_round.py 2025 6 Q` now matches the hand-repaired
+rows is the owner's check (review pack step 4).
+
+Carried forward, not blocking: `q_segment="laps"` overloads a column that
+currently has no readers. A future reader that treats `q_segment` as Q1/Q2/Q3
+has to handle the flag (decision 2, 2026-10-20).
 
 Spec: `docs/phase2-status.md` "What is still open"; slice-4 notes above.
 
