@@ -337,7 +337,7 @@ includes `--grid-from-quali` and the post-quali backtest arm.
 
 ## slice-7: Phase 2 carry-forwards
 
-Status: todo
+Status: in-progress
 
 Spec: `docs/phase2-status.md` "What is still open"; slice-4 notes above.
 

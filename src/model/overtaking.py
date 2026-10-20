@@ -179,15 +179,22 @@ def fit_circuit(rows: pd.DataFrame, event_name: str, hand_rating: float | None) 
 
 def build_overtaking_data(driver_rounds: pd.DataFrame, circuits: pd.DataFrame | None = None,
                            before_season: int | None = None,
-                           before_round: int | None = None) -> OvertakingData:
+                           before_round: int | None = None,
+                           event_name: str | None = None) -> OvertakingData:
     """Fit every circuit with enough history in the window.
 
     `before_season`/`before_round` cut the window to rounds strictly *before*
     that round, which is what keeps a backtest honest: the round being
     forecast must not be in its own overtaking fit.
+
+    `event_name` restricts the fit to that one circuit. A forecast consumes
+    only its own circuit's parameter, so fitting the rest of the calendar on
+    every call made a backtest pay rounds x circuits fits (slice-7).
     """
     ratings = hand_ratings(circuits)
     df = _usable_race_rows(driver_rounds)
+    if event_name is not None and not df.empty:
+        df = df[df["event_name"].astype(str) == str(event_name)]
     if before_season is not None:
         cutoff = (before_season, before_round if before_round is not None else 0)
         keep = [(s, r) < cutoff for s, r in zip(df["season"], df["round"])]
