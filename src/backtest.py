@@ -182,7 +182,7 @@ def forecast_race_challenger(challenger_model, reliability_data, driver_rounds: 
         combined_dnf_prob, sample_incident_dnf_prob, sample_mechanical_dnf_prob,
     )
     from sim.race import RaceTrialInputs, simulate_positions, summarize_trials, load_points_table
-    from cli import _entrants_for_round, _circuit_info
+    from cli import _entrants_for_round, _circuit_info, _round_event_name
     from model.overtaking import build_overtaking_data
 
     rng = np.random.default_rng(seed)
@@ -190,7 +190,8 @@ def forecast_race_challenger(challenger_model, reliability_data, driver_rounds: 
     # Same fitted overtaking parameter the Bayesian path uses, off the same
     # pre-round window -- "same race resolver" above has to stay true.
     overtaking_data = build_overtaking_data(driver_rounds, circuits,
-                                             before_season=season, before_round=round_)
+                                             before_season=season, before_round=round_,
+                                             event_name=_round_event_name(driver_rounds, season, round_))
     circuit_type, overtaking_difficulty = _circuit_info(circuits, driver_rounds, season, round_,
                                                          overtaking_data)
 

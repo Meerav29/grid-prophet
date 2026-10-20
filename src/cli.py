@@ -243,6 +243,12 @@ def _quali_grid_for_round(driver_rounds: pd.DataFrame, season: int, round_: int,
     return values.rank(method="first", na_option="bottom").to_numpy(dtype=int)
 
 
+def _round_event_name(driver_rounds: pd.DataFrame, season: int, round_: int):
+    """The round's event name, or None when the round has no rows."""
+    rows = driver_rounds[(driver_rounds["season"] == season) & (driver_rounds["round"] == round_)]
+    return rows.iloc[0]["event_name"] if not rows.empty else None
+
+
 def _circuit_info(circuits: pd.DataFrame, driver_rounds: pd.DataFrame, season: int, round_: int,
                    overtaking_data=None) -> tuple[str, float]:
     """(circuit_type, overtaking_difficulty) for one round.
@@ -257,7 +263,7 @@ def _circuit_info(circuits: pd.DataFrame, driver_rounds: pd.DataFrame, season: i
     rows = driver_rounds[(driver_rounds["season"] == season) & (driver_rounds["round"] == round_)]
     if rows.empty:
         return "mixed", DEFAULT_DIFFICULTY
-    event_name = rows.iloc[0]["event_name"]
+    event_name = _round_event_name(driver_rounds, season, round_)
     circuit_type = rows.iloc[0]["circuit_type"] if pd.notna(rows.iloc[0]["circuit_type"]) else "mixed"
     match = circuits[circuits["event_name"] == event_name]
     hand_rating = float(match.iloc[0]["overtaking_difficulty"]) if not match.empty else None
@@ -303,7 +309,8 @@ def forecast_weekend(idata, data, reliability_data, driver_rounds: pd.DataFrame,
     # model on a parameter that already saw the answer.
     if overtaking_data is None:
         overtaking_data = build_overtaking_data(driver_rounds, circuits,
-                                                 before_season=season, before_round=round_)
+                                                 before_season=season, before_round=round_,
+                                                 event_name=_round_event_name(driver_rounds, season, round_))
     circuit_type, overtaking_difficulty = _circuit_info(circuits, driver_rounds, season, round_,
                                                          overtaking_data)
     round_idx = data.round_to_idx.get((season, round_))  # None for a genuinely future round -> use latest

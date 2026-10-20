@@ -133,6 +133,34 @@ def _weather_summary(session) -> tuple[bool | None, float | None]:
         return None, None
 
 
+# `q_segment` on a quali row whose time came from the session laps rather
+# than the official Q1/Q2/Q3 columns. Nothing reads q_segment as a segment
+# name, so the flag needs no schema change.
+LAPS_FALLBACK_SEGMENT = "laps"
+
+
+def _fastest_session_laps(session) -> dict:
+    """abbreviation -> fastest non-deleted lap in seconds, off the session laps.
+
+    The fallback for a quali whose results carry positions but no Q1/Q2/Q3
+    times (2025 R6 Miami upstream). Deleted laps (track limits) are excluded,
+    so a driver whose only lap was struck off still gets no time.
+    """
+    try:
+        laps = session.laps
+    except Exception:
+        log.warning("  session laps unavailable for %s %s", getattr(session, "event", "?"),
+                    getattr(session, "name", "?"), exc_info=True)
+        return {}
+    if laps is None or laps.empty or "LapTime" not in laps.columns:
+        return {}
+    laps = laps.dropna(subset=["LapTime"])
+    if "Deleted" in laps.columns:
+        laps = laps[laps["Deleted"].fillna(False) != True]  # noqa: E712 -- object dtype
+    fastest = laps.groupby("Driver")["LapTime"].min()
+    return {str(d): t / np.timedelta64(1, "s") for d, t in fastest.items()}
+
+
 def _build_quali_rows(year: int, rnd: int, event_name: str, circuit_type: str) -> list[dict]:
     rows = []
     try:
@@ -147,22 +175,47 @@ def _build_quali_rows(year: int, rnd: int, event_name: str, circuit_type: str) -
         return rows
 
     is_wet, air_temp = _weather_summary(session)
-    pole_time = None
-    for q_col in ("Q3", "Q2", "Q1"):
-        col = results[q_col].dropna()
-        if not col.empty:
-            pole_time = col.min() / np.timedelta64(1, "s")
-            break
-
+    best_by_row = []
     for _, r in results.iterrows():
-        best = None
-        q_segment = None
+        best, q_segment = None, None
         for q_col in ("Q3", "Q2", "Q1"):
             t = r.get(q_col)
             if pd.notna(t):
                 best = t / np.timedelta64(1, "s")
                 q_segment = q_col
                 break
+        best_by_row.append((best, q_segment))
+
+    # A classified row with no Q time is the Miami 2025 gap: fall back to the
+    # driver's fastest session lap, and say so in the row and the log.
+    needs_laps = [i for i, (_, r) in enumerate(results.iterrows())
+                  if best_by_row[i][0] is None and pd.notna(r.get("Position"))]
+    if needs_laps:
+        lap_times = _fastest_session_laps(session)
+        filled = []
+        for i in needs_laps:
+            abbr = str(results.iloc[i].get("Abbreviation", ""))
+            if abbr in lap_times:
+                best_by_row[i] = (lap_times[abbr], LAPS_FALLBACK_SEGMENT)
+                filled.append(abbr)
+        if filled:
+            log.warning("  %d Round %d quali: no Q1/Q2/Q3 time for %s -- best_lap_s taken from "
+                        "the fastest session lap (q_segment=%r)", year, rnd, ", ".join(filled),
+                        LAPS_FALLBACK_SEGMENT)
+
+    # Pole is the official one wherever a Q column has times, exactly as
+    # before; lap-derived times set it only when the session has none at all.
+    pole_time = None
+    for q_col in ("Q3", "Q2", "Q1"):
+        col = results[q_col].dropna()
+        if not col.empty:
+            pole_time = col.min() / np.timedelta64(1, "s")
+            break
+    timed = [b for b, _ in best_by_row if b is not None]
+    if pole_time is None and timed:
+        pole_time = min(timed)
+
+    for (_, r), (best, q_segment) in zip(results.iterrows(), best_by_row):
         rows.append({
             "season": year, "round": rnd, "event_name": event_name, "circuit_type": circuit_type,
             "session_type": "Q",
