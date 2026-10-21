@@ -6,7 +6,7 @@ from the repo root).
 
 Implemented: `fit`, `race --mode pre`, `race --mode post-quali` (Phase 2,
 spec sec 6 conditioning), sprint weekends (sec 3.4), and `backtest` (the
-sec 7 evaluation). `season` is Phase 3.
+sec 7 evaluation), and `season` (sec 3.4 chaining, Phase 3).
 """
 
 from __future__ import annotations
@@ -470,6 +470,152 @@ def cmd_race(args):
 
 
 # ---------------------------------------------------------------------------
+# gp season
+# ---------------------------------------------------------------------------
+
+def _season_so_far(driver_rounds: pd.DataFrame, season: int, through_round: int):
+    """Points and Grand Prix wins already scored in `season` up to and
+    including `through_round`, as ({driver: pts}, {team: pts}, {driver: wins},
+    {team: wins}). Read from the recorded `points` of R and S rows, so team
+    totals follow whoever actually drove the car that weekend."""
+    run = driver_rounds[(driver_rounds["season"] == season) & (driver_rounds["round"] <= through_round)
+                         & (driver_rounds["session_type"].isin(["R", "S"]))]
+    pts = run.assign(points=run["points"].fillna(0.0))
+    won = run[(run["session_type"] == "R") & (run["finish_position"] == 1)]
+    return (pts.groupby("abbreviation")["points"].sum().to_dict(),
+            pts.groupby("team")["points"].sum().to_dict(),
+            won.groupby("abbreviation").size().to_dict(),
+            won.groupby("team").size().to_dict())
+
+
+def forecast_season(idata, data, reliability_data, driver_rounds: pd.DataFrame, circuits: pd.DataFrame,
+                     n_trials: int = 10_000, seed: int = 0, schedule_loader=None):
+    """Chain the rest of the fitted season (spec sec 3.4).
+    Returns `(drivers_championship, constructors_championship)`.
+
+    The season and the last completed round are the fit's own cutoff, so the
+    chain starts exactly where the posterior ends. Entrants for the remaining
+    rounds are the last completed round's line-up."""
+    from model.overtaking import build_overtaking_data, circuit_difficulty
+    from model.pace import CIRCUIT_TYPES
+    from model.reliability import sample_incident_dnf_prob, sample_mechanical_dnf_prob
+    from sim.race import load_points_table
+    from sim.season import (
+        SeasonRound, SeasonTrialInputs, constructors_championship, drivers_championship,
+        remaining_calendar, simulate_season, step_sigma_for_round,
+    )
+
+    season, through = max(data.round_to_idx, key=data.round_to_idx.get)
+    calendar = remaining_calendar(season, through, loader=schedule_loader)
+    rng = np.random.default_rng(seed)
+
+    entrants = _entrants_for_round(driver_rounds, season, through)
+    driver_ids, teams = entrants["abbreviation"].tolist(), entrants["team"].tolist()
+    drv_pts, team_pts, drv_wins, team_wins = _season_so_far(driver_rounds, season, through)
+    team_names = sorted(set(teams) | set(team_pts))
+
+    post = idata.posterior
+    n_posterior = post.sizes["chain"] * post.sizes["draw"]
+    draw_idx = rng.integers(0, n_posterior, size=n_trials)
+
+    def flat(name):
+        arr = np.asarray(post[name])
+        return arr.reshape(n_posterior, *arr.shape[2:])[draw_idx]
+
+    car_all = np.asarray(post["car"].isel(round=data.round_to_idx[(season, through)])
+                         .transpose("chain", "draw", "team")).reshape(n_posterior, -1)[draw_idx]
+    car0_mean = flat("car0").mean(axis=1)
+    fitted_teams = list(post["car"].coords["team"].values)
+    car = np.column_stack([car_all[:, fitted_teams.index(t)] if t in fitted_teams else car0_mean
+                           for t in team_names])
+
+    fitted_drivers = list(post["driver_skill"].coords["driver"].values)
+    skill_all, offset_all, track_all = flat("driver_skill"), flat("quali_offset"), flat("driver_track")
+    n_drivers = len(driver_ids)
+    skill, offset = np.zeros((n_trials, n_drivers)), np.zeros((n_trials, n_drivers))
+    track = np.zeros((n_trials, n_drivers, len(CIRCUIT_TYPES)))
+    for i, d in enumerate(driver_ids):
+        if d in fitted_drivers:  # an unseen driver keeps the field-average zeros
+            j = fitted_drivers.index(d)
+            skill[:, i], offset[:, i], track[:, i] = skill_all[:, j], offset_all[:, j], track_all[:, j]
+
+    # Hazards are posterior parameters: one draw per trial, held for the season.
+    team_mech = {t: sample_mechanical_dnf_prob(reliability_data, t, season, n_trials, rng)
+                 for t in sorted(set(teams))}
+    mech = np.column_stack([team_mech[t] for t in teams])
+    quali_pace = car[:, [team_names.index(t) for t in teams]] + skill + offset
+    hazard_grid = _hazard_grid(None, quali_pace)
+    incident = np.column_stack([sample_incident_dnf_prob(reliability_data, d, hazard_grid[i], n_trials, rng)
+                                for i, d in enumerate(driver_ids)])
+
+    overtaking = build_overtaking_data(driver_rounds, circuits, before_season=season, before_round=through + 1)
+    rounds = []
+    for row in calendar.itertuples(index=False):
+        match = circuits[circuits["event_name"] == row.event_name]
+        ctype = match.iloc[0]["circuit_type"] if not match.empty else "mixed"
+        hand = float(match.iloc[0]["overtaking_difficulty"]) if not match.empty else None
+        rounds.append(SeasonRound(
+            round=int(row.round), has_sprint=bool(row.has_sprint),
+            circuit_type_idx=CIRCUIT_TYPES.index(ctype) if ctype in CIRCUIT_TYPES else 0,
+            overtaking_difficulty=circuit_difficulty(overtaking, row.event_name, hand),
+            step_sigma=step_sigma_for_round(season, int(row.round))))
+
+    inputs = SeasonTrialInputs(
+        driver_ids=driver_ids, teams=teams, team_names=team_names, car=car,
+        driver_skill=skill, driver_track=track, quali_offset=offset,
+        race_noise_nu=flat("race_nu"), race_noise_sigma=flat("race_sigma"),
+        quali_noise_sigma=flat("quali_sigma"),
+        mechanical_dnf_prob=mech, incident_dnf_prob=incident)
+    outcome = simulate_season(inputs, rounds, load_points_table("grand_prix", season),
+                              load_points_table("sprint", season), rng)
+
+    # Drivers who scored this season but are not on the current line-up keep
+    # their points and score nothing more.
+    all_drivers = driver_ids + sorted(set(drv_pts) - set(driver_ids))
+    last_team = (driver_rounds[driver_rounds["season"] == season]
+                 .sort_values("round").groupby("abbreviation")["team"].last())
+    all_teams = teams + [last_team[d] for d in all_drivers[n_drivers:]]
+    future = np.zeros((n_trials, len(all_drivers)))
+    future_wins = np.zeros_like(future)
+    future[:, :n_drivers], future_wins[:, :n_drivers] = outcome.driver_points, outcome.driver_wins
+    cur_d = np.array([drv_pts.get(d, 0.0) for d in all_drivers])
+    cur_dw = np.array([drv_wins.get(d, 0) for d in all_drivers])
+    cur_t = np.array([team_pts.get(t, 0.0) for t in team_names])
+    cur_tw = np.array([team_wins.get(t, 0) for t in team_names])
+    drivers = drivers_championship(cur_d + future, cur_dw + future_wins, all_drivers, all_teams, cur_d)
+    constructors = constructors_championship(cur_t + outcome.team_points, cur_tw + outcome.team_wins,
+                                             team_names, cur_t)
+    return drivers, constructors
+
+
+def cmd_season(args):
+    from sim.season import ScheduleUnavailable
+
+    fit_dir = args.fit_dir
+    if fit_dir is None:
+        if not os.path.exists(LATEST_POINTER):
+            print("No fit found. Run `gp fit --through ...` first, or pass --fit-dir.", file=sys.stderr)
+            sys.exit(1)
+        fit_dir = open(LATEST_POINTER).read().strip()
+    idata, data, reliability_data, _ = load_fit(fit_dir)
+    try:
+        drivers, constructors = forecast_season(idata, data, reliability_data, _load_driver_rounds(),
+                                                _load_circuits(), n_trials=args.n_trials, seed=args.seed)
+    except ScheduleUnavailable as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
+
+    out_dir = args.out_dir or fit_dir
+    os.makedirs(out_dir, exist_ok=True)
+    for name, table in (("drivers_championship.csv", drivers),
+                        ("constructors_championship.csv", constructors)):
+        path = os.path.join(out_dir, name)
+        table.to_csv(path, index=False)
+        print(table.to_string(index=False))
+        print(f"Saved -> {path}\n")
+
+
+# ---------------------------------------------------------------------------
 # gp backtest
 # ---------------------------------------------------------------------------
 
@@ -519,6 +665,13 @@ def build_parser() -> argparse.ArgumentParser:
                              "grid from the quali classification (ignores grid penalties and "
                              "pit-lane starts; a sprint's own grid is unaffected)")
     p_race.set_defaults(func=cmd_race)
+
+    p_season = sub.add_parser("season", help="Chain the rest of the fitted season: both championships")
+    p_season.add_argument("--fit-dir", default=None)
+    p_season.add_argument("--out-dir", default=None)
+    p_season.add_argument("--n-trials", type=int, default=10_000)
+    p_season.add_argument("--seed", type=int, default=0)
+    p_season.set_defaults(func=cmd_season)
 
     p_bt = sub.add_parser("backtest", help="Rolling backtest (spec sec 7)")
     p_bt.add_argument("--seasons", default="2022-2025")

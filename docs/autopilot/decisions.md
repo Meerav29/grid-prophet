@@ -160,3 +160,15 @@ Question:    How should `collect_v2` flag a quali row whose time came from the s
 Chosen:      `q_segment = "laps"` on the row plus a WARNING log naming the drivers. Per row: only a row with a `Position` and no Q1/Q2/Q3 time falls back, to that driver's fastest lap with `Deleted` laps excluded. Pole is still the official Q3→Q2→Q1 minimum wherever any official time exists; lap times set pole only when the session has none at all.
 Rejected:    A new `time_source` column. Clearer, but it changes the `driver_rounds.csv` schema (COLUMNS, the validator, every existing file) for one round in nine seasons; `q_segment` has no readers in `src/` or `tests/`, so overloading it is free. Also rejected: triggering only when the whole session lacks times. Simpler, but the criterion is per row, and a partial upstream gap would then still drop drivers silently.
 Blast radius: `_fastest_session_laps` and the fallback block in `collect_v2._build_quali_rows`. Fully-timed sessions are byte-for-byte unchanged (the laps are never read; a test asserts it). Lap-derived times can order near-ties differently from the official classification (NOR/PIA/ANT in Miami sit within 0.002s); `finish_position` still comes from the results, so the grid is unaffected.
+
+## 2026-10-21 — slice-8
+Question:    §3.4 says carry the team random walk forward. It does not say whether the other posterior terms (driver skill, noise scales, both DNF hazards) are redrawn per round or held for the season.
+Chosen:      One posterior draw per trial, held for every remaining round. Only `car` steps between rounds, by the pace model's own `SIGMA_DEV` (doubled for a reset year's first rounds, as in `_step_sigma_scale`). The incident hazard's grid slot is the season-start posterior-mean quali ranking (`cli._hazard_grid`, pre-weekend rule).
+Rejected:    Redrawing the parameters each round. That treats parameter uncertainty as round-to-round noise, so it averages out over a season and makes title odds too confident.
+Blast radius: `sim.season.simulate_season`, `cli.forecast_season`. Nothing in `gp race` or the backtest changes.
+
+## 2026-10-21 — slice-8
+Question:    Which line-up races the remaining rounds, and how are ties on points broken?
+Chosen:      The last completed round's entrants. Drivers who scored earlier but are no longer entered keep their points and score nothing more. Team current points come from the recorded points on R/S rows, so they follow whoever drove the car. Ties go to more Grand Prix wins, then column order.
+Rejected:    An explicit entry list (nothing in the repo maintains one) and the full FIA countback (second places onward). The countback adds a per-position tally for ties that fractional expected points almost never hit.
+Blast radius: `cli.forecast_season`, `sim.season.final_positions`.

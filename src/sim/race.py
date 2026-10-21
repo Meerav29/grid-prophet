@@ -252,16 +252,21 @@ def simulate_weekend(inputs: RaceTrialInputs, rng: np.random.Generator,
                            sprint_positions=sprint_positions, sprint_dnf=sprint_dnf)
 
 
-def summarize_trials(positions: np.ndarray, dnf: np.ndarray, driver_ids: list, teams: list,
-                      points_table: dict) -> pd.DataFrame:
-    """Turn (n_trials, n_drivers) position/dnf arrays into race_forecast.csv rows."""
-    n_trials, n_drivers = positions.shape
+def points_for_trials(positions: np.ndarray, dnf: np.ndarray, points_table: dict) -> np.ndarray:
+    """(n_trials, n_drivers) points scored, zero for a DNF."""
+    n_drivers = positions.shape[1]
     points_by_pos = np.zeros(n_drivers + 1)
     for pos, pts in points_table.items():
         if 1 <= pos <= n_drivers:
             points_by_pos[pos] = pts
-    trial_points = points_by_pos[positions]
-    trial_points = np.where(dnf, 0.0, trial_points)
+    return np.where(dnf, 0.0, points_by_pos[positions])
+
+
+def summarize_trials(positions: np.ndarray, dnf: np.ndarray, driver_ids: list, teams: list,
+                      points_table: dict) -> pd.DataFrame:
+    """Turn (n_trials, n_drivers) position/dnf arrays into race_forecast.csv rows."""
+    n_trials, n_drivers = positions.shape
+    trial_points = points_for_trials(positions, dnf, points_table)
 
     rows = []
     for i, driver in enumerate(driver_ids):
