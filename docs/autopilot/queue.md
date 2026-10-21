@@ -379,7 +379,24 @@ Acceptance:
 
 ## slice-8: season chaining and `gp season`
 
-Status: in-review — PR #21
+Status: merged — PR #21 merged by the review routine 2026-10-21 (`e69f8c3`).
+
+All six criteria were verified against the diff rather than against the PR
+body. CI (`test`) was green on `503aded`; the diff is 594 lines, inside the
+600-line review cap, with the CLI wiring included. The review re-ran the full
+suite on the PR head independently (Python 3.11, fresh venv): 309 passed.
+Three mutations were applied independently: stepping from the fitted car
+instead of the running one (1 failed), dropping one driver per team from the
+constructor sum (2 failed), and a loader that returns nothing (5 failed).
+
+The backtest has not been run against this slice, and the real
+`fastf1.get_event_schedule` path is untested (every test stubs the loader).
+Review pack step 4 (`gp season` on a real fit, check `current_points` against
+the real 2026 standings) is the owner's check.
+
+Carried forward, not blocking: `final_positions` orders on
+`points * 100 + wins`, which assumes points come in steps of at least 0.5 and
+wins stay under 50. True for every current points table.
 
 Spec: `docs/grid-prophet-v2-spec.md` §3.4, §6 (`gp season`, the two
 championship CSVs), §8 Phase 3.
