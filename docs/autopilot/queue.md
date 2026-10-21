@@ -379,7 +379,7 @@ Acceptance:
 
 ## slice-8: season chaining and `gp season`
 
-Status: in-progress
+Status: in-review — PR #21
 
 Spec: `docs/grid-prophet-v2-spec.md` §3.4, §6 (`gp season`, the two
 championship CSVs), §8 Phase 3.
