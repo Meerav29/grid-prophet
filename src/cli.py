@@ -626,6 +626,14 @@ def cmd_backtest(args):
     if len(seasons) == 2:
         seasons = list(range(seasons[0], seasons[1] + 1))
 
+    if args.season_level:
+        from backtest import run_season_backtest
+
+        run_season_backtest(seasons=seasons, cutoffs=[int(c) for c in args.cutoffs.split(",")],
+                            n_trials=args.n_trials, method=args.method,
+                            advi_steps=args.advi_steps, out_dir=args.out_dir)
+        return
+
     run_backtest(
         seasons=seasons, n_trials=args.n_trials, method=args.method,
         rounds=args.rounds, advi_steps=args.advi_steps, out_dir=args.out_dir,
@@ -685,6 +693,11 @@ def build_parser() -> argparse.ArgumentParser:
                            "against pre-weekend (Phase 2 gate); writes conditioning_log.csv")
     p_bt.add_argument("--post-quali-chains", type=int, default=2,
                       help="chains for each round's post-quali conditioning refit")
+    p_bt.add_argument("--season-level", action="store_true",
+                      help="Season-level backtest instead (spec sec 7, Phase 3): fit at each "
+                           "--cutoffs round, chain the rest of the season, score both championships")
+    p_bt.add_argument("--cutoffs", default="2,6,12",
+                      help="with --season-level: comma-separated rounds to fit through")
     p_bt.set_defaults(func=cmd_backtest)
 
     return parser

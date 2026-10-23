@@ -507,3 +507,257 @@ def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
     print(json.dumps(summary, indent=2))
     print(f"Saved -> {outdir}")
     return metrics_df
+
+
+# ---------------------------------------------------------------------------
+# Season-level backtest (spec sec 7 season-level metrics, sec 8 Phase 3)
+# ---------------------------------------------------------------------------
+
+SEASON_CUTOFFS = (2, 6, 12)
+# Legacy leave-one-season-out constructor-share Spearman at EARLY_ROUNDS=2
+# (spec sec 4). Reported beside the rolling legacy number, never scored.
+LEGACY_REFERENCE_SPEARMAN = 0.88
+
+
+def backtest_schedule(driver_rounds: pd.DataFrame):
+    """A `sim.season.remaining_calendar` loader that reads a held-out season's
+    calendar off the rounds that actually ran, in FastF1's column names. A
+    round is a sprint weekend if it has S rows (as `cli._round_has_sprint`)."""
+    def loader(season: int) -> pd.DataFrame:
+        rows = driver_rounds[driver_rounds["season"] == season]
+        races = rows[rows["session_type"] == "R"].drop_duplicates("round").sort_values("round")
+        sprints = set(rows.loc[rows["session_type"] == "S", "round"])
+        return pd.DataFrame({
+            "RoundNumber": races["round"].astype(int).to_numpy(),
+            "EventName": races["event_name"].astype(str).to_numpy(),
+            "EventFormat": ["sprint_qualifying" if r in sprints else "conventional"
+                            for r in races["round"]],
+        })
+    return loader
+
+
+def _champion(points: dict, wins: dict) -> str | None:
+    """Most points, ties to more Grand Prix wins (as `sim.season.final_positions`)."""
+    if not points:
+        return None
+    return max(points, key=lambda k: (points[k], wins.get(k, 0)))
+
+
+def _title_brier(p_title: dict, champion: str | None) -> float:
+    """Multi-class Brier on the title winner: summed over the field, 0 to 2."""
+    if champion is None:
+        return float("nan")
+    p = dict(p_title)
+    p.setdefault(champion, 0.0)
+    return float(sum((v - (1.0 if k == champion else 0.0)) ** 2 for k, v in p.items()))
+
+
+def _coverage80(table: pd.DataFrame, key: str, actual: dict, among=None) -> float:
+    rows = table if among is None else table[table[key].isin(among)]
+    hits = [r.p10_final_points <= actual.get(getattr(r, key), 0.0) <= r.p90_final_points
+            for r in rows.itertuples(index=False)]
+    return float(np.mean(hits)) if hits else float("nan")
+
+
+def _share_spearman(predicted: dict, actual: dict) -> float:
+    common = [k for k in predicted if k in actual]
+    if len(common) < 3:
+        return float("nan")
+    rho, _ = spearmanr([predicted[k] for k in common], [actual[k] for k in common])
+    return float(rho)
+
+
+def score_season_cutoff(drivers: pd.DataFrame, constructors: pd.DataFrame,
+                         driver_rounds: pd.DataFrame, season: int, lineup: list) -> dict:
+    """Score one cutoff's championship tables against the season's real final
+    standings (spec sec 7). Driver coverage is over `lineup`, the drivers the
+    chain actually simulated: a driver who had already left keeps a fixed
+    total, which an interval covers trivially."""
+    from cli import _season_so_far
+
+    last = int(driver_rounds.loc[driver_rounds["season"] == season, "round"].max())
+    drv_pts, team_pts, drv_wins, team_wins = _season_so_far(driver_rounds, season, last)
+    total = sum(team_pts.values())
+    actual_share = {t: p / total for t, p in team_pts.items()} if total > 0 else {}
+    return {
+        "constructor_spearman_v2": _share_spearman(
+            dict(zip(constructors["team"], constructors["exp_share"])), actual_share),
+        "brier_drivers_title": _title_brier(dict(zip(drivers["driver"], drivers["p_title"])),
+                                            _champion(drv_pts, drv_wins)),
+        "brier_constructors_title": _title_brier(dict(zip(constructors["team"], constructors["p_title"])),
+                                                 _champion(team_pts, team_wins)),
+        "coverage80_drivers": _coverage80(drivers, "driver", drv_pts, among=lineup),
+        "coverage80_constructors": _coverage80(constructors, "team", team_pts),
+    }
+
+
+def legacy_constructor_spearman(features: pd.DataFrame, season: int) -> float:
+    """The legacy season-level model at a matching cutoff: `features` is
+    `features.build_features(early_rounds=cutoff)`. Trained on seasons
+    strictly before `season`, the same information the rolling v2 fit has,
+    with `train.py`'s Ridge pipeline on its full feature set."""
+    from sklearn.impute import SimpleImputer
+    from sklearn.linear_model import Ridge
+    from sklearn.pipeline import Pipeline
+    from train import FEATURE_COLS
+
+    known = features[features["season_points_share"].notna()]
+    train, test = known[known["year"] < season], known[known["year"] == season]
+    if train.empty or len(test) < 3:
+        return float("nan")
+    model = Pipeline([("imp", SimpleImputer()), ("reg", Ridge(alpha=1.0))])
+    model.fit(train[FEATURE_COLS], train["season_points_share"])
+    rho, _ = spearmanr(model.predict(test[FEATURE_COLS]), test["season_points_share"])
+    return float(rho)
+
+
+def _legacy_features(cutoff: int) -> pd.DataFrame:
+    from features import build_features
+
+    return build_features(early_rounds=cutoff)
+
+
+def season_level_summary(rows: pd.DataFrame, seasons: list, cutoffs: list) -> dict:
+    """The season-level block of `backtest_summary.json`. Same discipline as
+    `post_quali_summary`: every requested (season, cutoff) is accounted for,
+    and `v2_beats_legacy_spearman` is None unless the run is complete -- every
+    cutoff scored and a legacy number beside each one."""
+    out: dict = {"seasons": list(seasons), "cutoffs": list(cutoffs),
+                 "legacy_reference_spearman": LEGACY_REFERENCE_SPEARMAN,
+                 "n_cutoffs_expected": len(seasons) * len(cutoffs)}
+    ok = rows[rows["status"] == "ok"] if len(rows) else rows
+    out["n_cutoffs_ok"] = len(ok)
+    attempted = {(int(r.season), int(r.cutoff)) for r in rows.itertuples()} if len(rows) else set()
+    missing = [f"{s}:{c} (not attempted)" for s in seasons for c in cutoffs if (s, c) not in attempted]
+    failed = missing + [f"{int(r.season)}:{int(r.cutoff)} ({r.status})"
+                        for r in rows.itertuples() if r.status != "ok"]
+    out["failed_cutoffs"] = failed
+
+    metrics = ["constructor_spearman_v2", "constructor_spearman_legacy", "brier_drivers_title",
+               "brier_constructors_title", "coverage80_drivers", "coverage80_constructors"]
+    per_cutoff = {}
+    for c in cutoffs:
+        at = ok[ok["cutoff"] == c] if len(ok) else ok
+        per_cutoff[str(c)] = {"n_seasons": len(at),
+                              **{f"mean_{m}": (float(at[m].mean()) if len(at) and at[m].notna().any()
+                                               else None) for m in metrics}}
+    out["per_cutoff"] = per_cutoff
+
+    no_legacy = (ok[ok["constructor_spearman_legacy"].isna()] if len(ok) else ok)
+    reasons = []
+    if failed:
+        reasons.append(f"{len(failed)} of {out['n_cutoffs_expected']} cutoff(s) did not score")
+    if len(no_legacy):
+        reasons.append(f"{len(no_legacy)} scored cutoff(s) have no legacy number to compare against")
+    if len(ok) and ok["constructor_spearman_v2"].isna().any():
+        reasons.append("a scored cutoff has no v2 Spearman (fewer than 3 teams in common)")
+    if not len(ok):
+        reasons.append("nothing scored")
+    out["gate_valid"] = not reasons
+    out["gate_invalid_reasons"] = reasons
+    if len(ok):
+        out["mean_constructor_spearman_v2"] = float(ok["constructor_spearman_v2"].mean())
+        out["mean_constructor_spearman_legacy"] = (float(ok["constructor_spearman_legacy"].mean())
+                                                   if ok["constructor_spearman_legacy"].notna().any()
+                                                   else None)
+    out["v2_beats_legacy_spearman"] = (bool(out["mean_constructor_spearman_v2"]
+                                            > out["mean_constructor_spearman_legacy"])
+                                       if not reasons else None)
+    return out
+
+
+def run_season_backtest(seasons: list[int], cutoffs=SEASON_CUTOFFS, n_trials: int = 5000,
+                         method: str = "advi", advi_steps: int = 4000, advi_draws: int = 300,
+                         out_dir: str | None = None, driver_rounds: pd.DataFrame | None = None,
+                         driver_meta: pd.DataFrame | None = None, circuits: pd.DataFrame | None = None,
+                         legacy_features=_legacy_features) -> pd.DataFrame:
+    """For each held-out season and cutoff: fit through `season:cutoff`, chain
+    the rest of that season with `cli.forecast_season`, and score the tables
+    against how the season really ended. The chain sees only rows up to the
+    cutoff; the real calendar is read off the season's own rows."""
+    from cli import _entrants_for_round, _load_circuits, forecast_season
+    from model.pace import build_pace_data, fit_advi, fit_nuts
+    from model.reliability import build_reliability_data
+
+    if driver_rounds is None:
+        driver_rounds = pd.read_csv(os.path.join(DATA_DIR, "driver_rounds.csv"))
+        meta_path = os.path.join(DATA_DIR, "driver_meta.csv")
+        driver_meta = pd.read_csv(meta_path) if os.path.exists(meta_path) else None
+    circuits = _load_circuits() if circuits is None else circuits
+    outdir = out_dir or os.path.join(OUTPUTS_DIR, f"backtest_{datetime.now():%Y%m%d_%H%M%S}")
+    os.makedirs(outdir, exist_ok=True)
+    loader = backtest_schedule(driver_rounds)
+    legacy_cache: dict = {}
+    rows = []
+    t_start = time.time()
+
+    for season in seasons:
+        season_rounds = set(driver_rounds.loc[(driver_rounds["season"] == season)
+                                              & (driver_rounds["session_type"] == "R"), "round"])
+        for cutoff in cutoffs:
+            row = {"season": season, "cutoff": cutoff}
+            rows.append(row)
+            if cutoff not in season_rounds or cutoff >= max(season_rounds):
+                row["status"] = "no_rounds_after_cutoff"
+                continue
+            t0 = time.time()
+            print(f"[season-backtest] {season}: fitting through {season}:{cutoff} ({method}) ...")
+            try:
+                data = build_pace_data(driver_rounds, driver_meta, through_season=season,
+                                       through_round=cutoff)
+                idata = (fit_advi(data, n=advi_steps, draws=advi_draws) if method == "advi"
+                         else fit_nuts(data, draws=250, tune=250, chains=1))
+                reliability = build_reliability_data(driver_rounds, through_season=season,
+                                                     through_round=cutoff)
+            except Exception as exc:
+                print(f"    WARNING: fit failed for {season}:{cutoff}: {exc}")
+                row["status"] = "fit_failed"
+                continue
+            seen = driver_rounds[(driver_rounds["season"] < season)
+                                 | ((driver_rounds["season"] == season) & (driver_rounds["round"] <= cutoff))]
+            try:
+                drivers, constructors = forecast_season(idata, data, reliability, seen, circuits,
+                                                        n_trials=n_trials, seed=cutoff,
+                                                        schedule_loader=loader)
+            except Exception as exc:
+                print(f"    WARNING: season chain failed for {season}:{cutoff}: {exc}")
+                row["status"] = "forecast_failed"
+                continue
+            for name, table in (("drivers", drivers), ("constructors", constructors)):
+                table.to_csv(os.path.join(outdir, f"season_{season}_r{cutoff}_{name}_championship.csv"),
+                             index=False)
+            lineup = _entrants_for_round(seen, season, cutoff)["abbreviation"].tolist()
+            row.update(score_season_cutoff(drivers, constructors, driver_rounds, season, lineup))
+
+            if cutoff not in legacy_cache:
+                try:
+                    legacy_cache[cutoff] = legacy_features(cutoff)
+                except Exception as exc:
+                    print(f"    WARNING: legacy features unavailable at cutoff {cutoff}: {exc}")
+                    legacy_cache[cutoff] = None
+            feats = legacy_cache[cutoff]
+            row["constructor_spearman_legacy"] = (legacy_constructor_spearman(feats, season)
+                                                  if feats is not None else float("nan"))
+            row["status"] = "ok"
+            row["elapsed_s"] = time.time() - t0
+
+    rows_df = pd.DataFrame(rows)
+    for col in ("constructor_spearman_v2", "constructor_spearman_legacy"):
+        if col not in rows_df.columns:
+            rows_df[col] = float("nan")
+    rows_df.to_csv(os.path.join(outdir, "season_backtest_metrics.csv"), index=False)
+
+    block = season_level_summary(rows_df, seasons, list(cutoffs))
+    block.update({"method": method, "n_trials": n_trials, "total_elapsed_s": time.time() - t_start})
+    # Join a race-level summary already in this --out-dir rather than overwrite it.
+    summary_path = os.path.join(outdir, "backtest_summary.json")
+    summary = {}
+    if os.path.exists(summary_path):
+        with open(summary_path) as f:
+            summary = json.load(f)
+    summary["season_level"] = block
+    with open(summary_path, "w") as f:
+        json.dump(summary, f, indent=2)
+    print(json.dumps(block, indent=2))
+    print(f"Saved -> {outdir}")
+    return rows_df
