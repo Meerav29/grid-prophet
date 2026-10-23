@@ -423,7 +423,7 @@ Acceptance:
 
 ## slice-9: season-level backtest harness
 
-Status: in-progress
+Status: in-review — PR #22.
 
 Spec: §7 season-level metrics, §8 Phase 3, §4 (legacy benchmark).
 
