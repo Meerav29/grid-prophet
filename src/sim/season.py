@@ -165,9 +165,16 @@ def _position_columns(pos: np.ndarray) -> dict:
             "p90_final_position": float(np.percentile(pos, 90))}
 
 
+def _points_interval(points: np.ndarray) -> dict:
+    """The 80% interval on final points, which the season backtest scores (sec 7)."""
+    return {"p10_final_points": float(np.percentile(points, 10)),
+            "p90_final_points": float(np.percentile(points, 90))}
+
+
 def drivers_championship(total_points: np.ndarray, total_wins: np.ndarray, driver_ids: list,
                           teams: list, current_points) -> pd.DataFrame:
-    """sec 6 `drivers_championship.csv`, plus `team` and `current_points`."""
+    """sec 6 `drivers_championship.csv`, plus `team`, `current_points` and
+    the 80% interval on final points."""
     pos = final_positions(total_points, total_wins)
     rows = []
     for i, driver in enumerate(driver_ids):
@@ -175,13 +182,15 @@ def drivers_championship(total_points: np.ndarray, total_wins: np.ndarray, drive
                      "p_title": float(np.mean(pos[:, i] == 1)),
                      "exp_final_points": float(np.mean(total_points[:, i])),
                      **_position_columns(pos[:, i]),
-                     "p_top3": float(np.mean(pos[:, i] <= 3))})
+                     "p_top3": float(np.mean(pos[:, i] <= 3)),
+                     **_points_interval(total_points[:, i])})
     return pd.DataFrame(rows).sort_values("exp_final_points", ascending=False).reset_index(drop=True)
 
 
 def constructors_championship(total_points: np.ndarray, total_wins: np.ndarray, team_names: list,
                                current_points) -> pd.DataFrame:
-    """sec 6 `constructors_championship.csv`, plus `current_points`.
+    """sec 6 `constructors_championship.csv`, plus `current_points` and the
+    80% interval on final points.
     `exp_share` is the per-trial share of all constructors' points, averaged."""
     pos = final_positions(total_points, total_wins)
     totals = total_points.sum(axis=1, keepdims=True)
@@ -192,5 +201,6 @@ def constructors_championship(total_points: np.ndarray, total_wins: np.ndarray, 
                      "p_title": float(np.mean(pos[:, j] == 1)),
                      "exp_final_points": float(np.mean(total_points[:, j])),
                      "exp_share": float(np.mean(share[:, j])),
-                     **_position_columns(pos[:, j])})
+                     **_position_columns(pos[:, j]),
+                     **_points_interval(total_points[:, j])})
     return pd.DataFrame(rows).sort_values("exp_final_points", ascending=False).reset_index(drop=True)
