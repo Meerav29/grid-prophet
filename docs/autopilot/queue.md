@@ -423,7 +423,25 @@ Acceptance:
 
 ## slice-9: season-level backtest harness
 
-Status: in-review — PR #22.
+Status: merged — PR #22 merged by the review routine 2026-10-23 (`9bef025`).
+
+All four criteria were verified against the diff rather than against the PR
+body. CI (`test`) was green on `28615d9`; the diff is 556 lines, inside the
+600-line review cap. The review re-ran the full suite on the PR head
+independently (Python 3.11, fresh venv): 326 passed. Five mutations were
+applied independently, and each one failed a test: the chain is handed the full
+`driver_rounds` (a leak), failed cutoffs no longer void the gate, the title
+Brier is a mean instead of a sum, the legacy model trains on every other season
+(LOSO), and the CLI ignores `--cutoffs`.
+
+**The real season-level backtest has not been run.** That is the Phase 3 gate,
+and only the owner runs it (PR #22, review pack step 3). The legacy column is a
+rolling Ridge on earlier seasons, not the 0.88 LOSO method (decision
+2026-10-23), so expect it to come in below 0.88.
+
+Carried forward, not blocking: the fixture only has 2024 R1-R2, so the
+end-to-end test runs at cutoff 1. The default 2/6/12 cutoffs have only been
+exercised as `no_rounds_after_cutoff` failures.
 
 Spec: §7 season-level metrics, §8 Phase 3, §4 (legacy benchmark).
 
