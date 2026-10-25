@@ -49,6 +49,13 @@ OUTPUTS_DIR = os.path.join(_THIS_DIR, "..", "outputs")
 
 COARSE_ROUNDS = [2, 4, 6, 9, 12, 16, 20]
 EPS = 1e-3
+# Podium calibration bins: ten equal-width bins on [0, 1], the same 0.1 bins
+# docs/phase2-status.md reads the pre-weekend file with.
+CALIBRATION_N_BINS = 10
+# A round is listed as a post-quali "confident miss" when its winner log loss is
+# worse than pre-weekend's by more than this many nats (~2.7x less probability
+# on the actual winner). Listing only; it feeds no verdict.
+POSTQUALI_WORSE_THRESHOLD_NATS = 1.0
 
 
 def _log_loss_winner(p_win: dict, actual_winner: str) -> float:
@@ -139,8 +146,11 @@ def score_round(forecast: pd.DataFrame, driver_rounds: pd.DataFrame, season: int
     p_win_pole = _pole_wins_baseline(actual)
     p_win_pace = _pace_rating_baseline(driver_rounds, actual, season, round_)
 
+    pole = actual[actual["grid_position"] == 1]
     result = {
         "season": season, "round": round_, "n_drivers": len(actual),
+        "actual_winner": actual_winner,
+        "grid_pole_driver": pole.iloc[0]["abbreviation"] if not pole.empty else None,
         "log_loss_winner_model": _log_loss_winner(p_win_model, actual_winner),
         "log_loss_winner_pole": _log_loss_winner(p_win_pole, actual_winner),
         "log_loss_winner_pace_rating": _log_loss_winner(p_win_pace, actual_winner),
@@ -249,6 +259,64 @@ def _calibration_bins(forecast: pd.DataFrame, actual: pd.DataFrame, col: str, th
     return out
 
 
+CALIBRATION_COLUMNS = ["p_podium_pred", "podium_actual", "season", "round"]
+
+
+def _podium_calibration(forecast: pd.DataFrame, actual: pd.DataFrame, season: int,
+                         round_: int) -> list[tuple]:
+    """One (p_podium_pred, podium_actual, season, round) row per scored driver.
+    Both arms write this shape, so their files can be compared row for row."""
+    return [(p, hit, season, round_) for p, hit in _calibration_bins(
+        forecast, actual, "p_podium", lambda a: set(a[a["finish_position"] <= 3]["abbreviation"]))]
+
+
+def calibration_summary(calib: pd.DataFrame, n_bins: int = CALIBRATION_N_BINS) -> dict:
+    """Binned reliability table and expected calibration error for one arm.
+
+    Bins are equal-width on [0, 1] (p = 1.0 falls in the top bin); empty bins
+    are left out of the table. ECE is the n-weighted mean of
+    |mean predicted - observed rate| over the non-empty bins: 0 is perfectly
+    calibrated, and it is in probability units, so 0.02 means the forecast is
+    off by two points on average where its predictions actually fall."""
+    if calib.empty:
+        return {"n": 0, "ece": None, "bins": []}
+    p = calib["p_podium_pred"].astype(float).to_numpy()
+    hit = calib["podium_actual"].astype(bool).to_numpy()
+    idx = np.clip(np.floor(p * n_bins).astype(int), 0, n_bins - 1)
+    bins, ece = [], 0.0
+    for b in range(n_bins):
+        mask = idx == b
+        n = int(mask.sum())
+        if not n:
+            continue
+        mean_pred, rate = float(p[mask].mean()), float(hit[mask].mean())
+        ece += n / len(p) * abs(mean_pred - rate)
+        bins.append({"bin_lo": b / n_bins, "bin_hi": (b + 1) / n_bins, "n": n,
+                     "mean_pred": mean_pred, "observed_rate": rate})
+    return {"n": len(p), "ece": float(ece), "bins": bins}
+
+
+def postquali_worse_rounds(metrics_df: pd.DataFrame,
+                           threshold: float = POSTQUALI_WORSE_THRESHOLD_NATS) -> list[dict]:
+    """Rounds where post-quali winner log loss is worse than pre-weekend's by
+    more than `threshold` nats, worst first, with the grid-pole driver and the
+    actual winner. Raw material for "do the confident misses share a cause";
+    no cause is inferred here."""
+    cols = {"log_loss_winner_model", "log_loss_winner_postquali", "season", "round"}
+    if not cols <= set(metrics_df.columns):
+        return []
+    both = metrics_df.dropna(subset=["log_loss_winner_postquali"])
+    delta = both["log_loss_winner_postquali"] - both["log_loss_winner_model"]
+    worse = both.assign(delta=delta)[delta > threshold].sort_values("delta", ascending=False)
+    return [{"season": int(r["season"]), "round": int(r["round"]),
+             "log_loss_pre": float(r["log_loss_winner_model"]),
+             "log_loss_postquali": float(r["log_loss_winner_postquali"]),
+             "delta": float(r["delta"]),
+             "grid_pole_driver": r.get("grid_pole_driver"),
+             "actual_winner": r.get("actual_winner")}
+            for _, r in worse.iterrows()]
+
+
 POST_QUALI_METRICS = ("log_loss_winner", "brier_podium", "brier_points", "spearman")
 
 
@@ -299,6 +367,8 @@ def post_quali_summary(metrics_df: pd.DataFrame, conditioning_log: pd.DataFrame,
         out["gate_invalid_reasons"] = reasons
         out["postquali_beats_pre_log_loss"] = (bool(out["postquali_log_loss_delta"] < 0)
                                                if not reasons else None)
+        out["postquali_worse_threshold_nats"] = POSTQUALI_WORSE_THRESHOLD_NATS
+        out["postquali_worse_rounds"] = postquali_worse_rounds(both)
     if len(conditioning_log):
         from model.conditioning import fallback_rate, regressions
         out["fallback_rate"] = fallback_rate(conditioning_log)
@@ -310,13 +380,15 @@ def post_quali_summary(metrics_df: pd.DataFrame, conditioning_log: pd.DataFrame,
 
 def _post_quali_arm(prior_idata, driver_rounds, driver_meta, circuits, reliability_data,
                      season: int, round_: int, n_trials: int, chains: int,
-                     conditioning_records: list, outdir: str) -> dict:
+                     conditioning_records: list, outdir: str,
+                     calibration_rows: list | None = None) -> dict:
     """Condition on round `round_`'s quali (warm-started NUTS, spec sec 6),
     forecast from the real grid, score it. Always returns a `postquali_status`
     -- "ok" with the `*_postquali` metric keys, or "conditioning_failed" /
     "forecast_failed" / "unscored" with nothing else. A failure is printed and
     counted by `post_quali_summary`; the round has no post-quali score, never a
-    silent zero. Only a round that conditioned writes a conditioning record."""
+    silent zero. Only a round that conditioned writes a conditioning record, and
+    only a scored round adds rows to `calibration_rows`."""
     from dataclasses import asdict
     from cli import forecast_race
     from model.conditioning import append_record, condition_on_quali
@@ -342,6 +414,9 @@ def _post_quali_arm(prior_idata, driver_rounds, driver_meta, circuits, reliabili
     if scored is None:
         print(f"    WARNING: post-quali forecast for {season}:{round_} could not be scored")
         return {"postquali_status": "unscored"}
+    if calibration_rows is not None:
+        calibration_rows.extend(_podium_calibration(
+            forecast, _actual_outcomes(driver_rounds, season, round_), season, round_))
     out = {f"{m}_postquali": scored[f"{m}_model"] for m in POST_QUALI_METRICS}
     out["postquali_status"] = "ok"
     return out
@@ -362,6 +437,7 @@ def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
 
     results = []
     calibration_rows = []
+    calibration_rows_postquali = []
     conditioning_records = []
     t_start = time.time()
 
@@ -447,22 +523,19 @@ def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
                     metrics.update(_post_quali_arm(
                         idata, driver_rounds, driver_meta, circuits, reliability_data, season, rr,
                         n_trials, post_quali_chains, conditioning_records, outdir,
+                        calibration_rows=calibration_rows_postquali,
                     ))
                 if metrics is not None:
                     metrics["fit_elapsed_s"] = fit_elapsed
                     results.append(metrics)
-                    actual = _actual_outcomes(driver_rounds, season, rr)
-                    calibration_rows.extend(
-                        (p, hit) for p, hit in _calibration_bins(
-                            forecast, actual, "p_podium", lambda a: set(a[a["finish_position"] <= 3]["abbreviation"])
-                        )
-                    )
+                    calibration_rows.extend(_podium_calibration(
+                        forecast, _actual_outcomes(driver_rounds, season, rr), season, rr))
 
     total_elapsed = time.time() - t_start
     print(f"[backtest] total elapsed: {total_elapsed:.1f}s ({total_elapsed / 60:.1f} min)")
 
     metrics_df = pd.DataFrame(results)
-    calib_df = pd.DataFrame(calibration_rows, columns=["p_podium_pred", "podium_actual"])
+    calib_df = pd.DataFrame(calibration_rows, columns=CALIBRATION_COLUMNS)
 
     os.makedirs(outdir, exist_ok=True)
     metrics_df.to_csv(os.path.join(outdir, "backtest_metrics.csv"), index=False)
@@ -471,6 +544,7 @@ def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
     summary = {
         "seasons": seasons, "n_rounds_scored": len(metrics_df), "rounds_mode": rounds,
         "method": method, "n_trials": n_trials, "total_elapsed_s": total_elapsed,
+        "calibration_podium": {"pre": calibration_summary(calib_df)},
     }
     if not metrics_df.empty:
         summary.update({
@@ -501,6 +575,16 @@ def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
         summary["post_quali"] = True
         summary.update(post_quali_summary(metrics_df, pd.DataFrame(conditioning_records),
                                           rounds_mode=rounds))
+        calib_post = pd.DataFrame(calibration_rows_postquali, columns=CALIBRATION_COLUMNS)
+        calib_post.to_csv(os.path.join(outdir, "calibration_podium_postquali.csv"), index=False)
+        # pre restricted to the rounds post-quali scored, so the two ECEs are
+        # over the same races and differ only in the forecast
+        paired = calib_df.merge(calib_post[["season", "round"]].drop_duplicates(),
+                                on=["season", "round"])
+        summary["calibration_podium"].update({
+            "pre_paired": calibration_summary(paired),
+            "postquali": calibration_summary(calib_post),
+        })
     with open(os.path.join(outdir, "backtest_summary.json"), "w") as f:
         json.dump(summary, f, indent=2)
 
