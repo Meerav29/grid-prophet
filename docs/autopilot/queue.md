@@ -464,7 +464,7 @@ Acceptance:
 
 ## slice-10: post-quali calibration
 
-Status: in-review — PR #23 opened by the build routine 2026-10-25.
+Status: merged — PR #23, squash-merged into `auto/queue` as c9ae98b by the review routine 2026-10-25.
 
 Spec: `docs/phase2-status.md` caveat 1 ("Calibration was not re-checked for
 post-quali").
