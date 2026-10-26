@@ -8,13 +8,13 @@
 
 | Day (ET) | Slice |
 |---|---|
-| Tue Oct 20 (4pm, one-off) | 7: Phase 2 carry-forwards (overtaking call-site test, per-circuit fit, Miami quali fallback) |
+| Tue Oct 20 (afternoon, one-off) | 7: Phase 2 carry-forwards (overtaking call-site test, per-circuit fit, Miami quali fallback) |
 | Wed Oct 21 | 8: season chaining and `gp season` |
 | Fri Oct 23 | 9: season-level backtest harness (built and tested on the fixture, **not run**) |
 | **Sat Oct 24, 8pm** | **US GP (2026 R18) post-quali forecast.** One-off, runs from the `forecast-data` branch and posts to #19 |
 | Sun Oct 25 | 10: post-quali calibration |
 
-Builds run around 9am ET, review around 2pm ET, and the digest around 7pm ET. Tuesday's one-off build gets a one-off 9pm review so Wednesday doesn't halt.
+Builds run around 9am ET, review around 2pm ET, and the digest around 7pm ET. Tuesday's one-off build gets an extra 6:30pm review so Wednesday doesn't halt.
 
 ## Review in this order when you're back
 
