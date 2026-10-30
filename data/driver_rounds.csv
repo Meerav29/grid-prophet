@@ -8208,71 +8208,93 @@ season,round,event_name,circuit_type,session_type,driver,abbreviation,team,grid_
 2026,16,Bahrain Grand Prix,mixed,R,Gabriel Bortoleto,BOR,Audi,10.0,18.0,True,Finished,,,,,101.382,3.162000000000006,103.541,2.3774999999999977,0.0,True,26.805905511811027
 2026,16,Bahrain Grand Prix,mixed,R,Sergio Perez,PER,Cadillac,20.0,19.0,True,Finished,,,,,102.688,4.468000000000004,105.12,3.9565000000000055,0.0,True,26.805905511811027
 2026,16,Bahrain Grand Prix,mixed,R,George Russell,RUS,Mercedes,7.0,20.0,True,Retired,other,,,,100.715,2.4950000000000045,101.644,0.4805000000000063,0.0,True,26.805905511811027
-2026,16,Bahrain Grand Prix,mixed,R,Alexander Albon,ALB,Williams,18.0,21.0,True,Retired,other,,,,102.284,4.064000000000007,103.813,2.6495000000000037,0.0,True,26.805905511811027
+2026,16,Bahrain Grand Prix,mixed,R,Alexander Albon,ALB,Williams,18.0,21.0,True,Retired,other,,,,102.284,4.064000000000007,103.813,2.649500000000004,0.0,True,26.805905511811027
 2026,16,Bahrain Grand Prix,mixed,R,Valtteri Bottas,BOT,Cadillac,19.0,22.0,True,Retired,other,,,,134.261,36.041,134.261,33.0975,0.0,True,26.805905511811027
 2026,17,Singapore Grand Prix,street,Q,Max Verstappen,VER,Red Bull Racing,,1.0,True,,,Q3,91.373,0.0,,,,,0.0,False,29.777272727272727
-2026,17,Singapore Grand Prix,street,Q,Charles Leclerc,LEC,Ferrari,,2.0,True,,,Q3,91.427,0.054000000000002046,,,,,0.0,False,29.777272727272727
-2026,17,Singapore Grand Prix,street,Q,Lewis Hamilton,HAM,Ferrari,,3.0,True,,,Q3,91.496,0.12299999999999045,,,,,0.0,False,29.777272727272727
-2026,17,Singapore Grand Prix,street,Q,Kimi Antonelli,ANT,Mercedes,,4.0,True,,,Q3,91.562,0.18899999999999295,,,,,0.0,False,29.777272727272727
-2026,17,Singapore Grand Prix,street,Q,Lando Norris,NOR,McLaren,,5.0,True,,,Q3,91.712,0.33899999999999864,,,,,0.0,False,29.777272727272727
+2026,17,Singapore Grand Prix,street,Q,Charles Leclerc,LEC,Ferrari,,2.0,True,,,Q3,91.427,0.054000000000002,,,,,0.0,False,29.777272727272727
+2026,17,Singapore Grand Prix,street,Q,Lewis Hamilton,HAM,Ferrari,,3.0,True,,,Q3,91.496,0.1229999999999904,,,,,0.0,False,29.777272727272727
+2026,17,Singapore Grand Prix,street,Q,Kimi Antonelli,ANT,Mercedes,,4.0,True,,,Q3,91.562,0.1889999999999929,,,,,0.0,False,29.777272727272727
+2026,17,Singapore Grand Prix,street,Q,Lando Norris,NOR,McLaren,,5.0,True,,,Q3,91.712,0.3389999999999986,,,,,0.0,False,29.777272727272727
 2026,17,Singapore Grand Prix,street,Q,George Russell,RUS,Mercedes,,6.0,True,,,Q3,91.747,0.3739999999999952,,,,,0.0,False,29.777272727272727
-2026,17,Singapore Grand Prix,street,Q,Oscar Piastri,PIA,McLaren,,7.0,True,,,Q3,91.86,0.48699999999999477,,,,,0.0,False,29.777272727272727
+2026,17,Singapore Grand Prix,street,Q,Oscar Piastri,PIA,McLaren,,7.0,True,,,Q3,91.86,0.4869999999999947,,,,,0.0,False,29.777272727272727
 2026,17,Singapore Grand Prix,street,Q,Pierre Gasly,GAS,Alpine,,8.0,True,,,Q3,92.225,0.8519999999999897,,,,,0.0,False,29.777272727272727
-2026,17,Singapore Grand Prix,street,Q,Liam Lawson,LAW,Racing Bulls,,9.0,True,,,Q3,92.369,0.9959999999999951,,,,,0.0,False,29.777272727272727
+2026,17,Singapore Grand Prix,street,Q,Liam Lawson,LAW,Racing Bulls,,9.0,True,,,Q3,92.369,0.9959999999999952,,,,,0.0,False,29.777272727272727
 2026,17,Singapore Grand Prix,street,Q,Arvid Lindblad,LIN,Racing Bulls,,10.0,True,,,Q3,92.781,1.4080000000000013,,,,,0.0,False,29.777272727272727
 2026,17,Singapore Grand Prix,street,Q,Nico Hulkenberg,HUL,Audi,,11.0,True,,,Q2,92.784,1.4110000000000014,,,,,0.0,False,29.777272727272727
 2026,17,Singapore Grand Prix,street,Q,Oliver Bearman,BEA,Haas F1 Team,,12.0,True,,,Q2,92.908,1.5349999999999966,,,,,0.0,False,29.777272727272727
-2026,17,Singapore Grand Prix,street,Q,Esteban Ocon,OCO,Haas F1 Team,,13.0,True,,,Q2,93.323,1.9499999999999886,,,,,0.0,False,29.777272727272727
-2026,17,Singapore Grand Prix,street,Q,Carlos Sainz,SAI,Williams,,14.0,True,,,Q2,93.526,2.1529999999999916,,,,,0.0,False,29.777272727272727
+2026,17,Singapore Grand Prix,street,Q,Esteban Ocon,OCO,Haas F1 Team,,13.0,True,,,Q2,93.323,1.9499999999999889,,,,,0.0,False,29.777272727272727
+2026,17,Singapore Grand Prix,street,Q,Carlos Sainz,SAI,Williams,,14.0,True,,,Q2,93.526,2.152999999999992,,,,,0.0,False,29.777272727272727
 2026,17,Singapore Grand Prix,street,Q,Gabriel Bortoleto,BOR,Audi,,15.0,True,,,Q2,93.658,2.2849999999999966,,,,,0.0,False,29.777272727272727
-2026,17,Singapore Grand Prix,street,Q,Franco Colapinto,COL,Alpine,,16.0,True,,,Q2,93.787,2.4140000000000015,,,,,0.0,False,29.777272727272727
+2026,17,Singapore Grand Prix,street,Q,Franco Colapinto,COL,Alpine,,16.0,True,,,Q2,93.787,2.414000000000001,,,,,0.0,False,29.777272727272727
 2026,17,Singapore Grand Prix,street,Q,Fernando Alonso,ALO,Aston Martin,,17.0,True,,,Q1,94.223,2.8499999999999943,,,,,0.0,False,29.777272727272727
 2026,17,Singapore Grand Prix,street,Q,Alexander Albon,ALB,Williams,,18.0,True,,,Q1,94.289,2.915999999999997,,,,,0.0,False,29.777272727272727
 2026,17,Singapore Grand Prix,street,Q,Lance Stroll,STR,Aston Martin,,19.0,True,,,Q1,94.946,3.5729999999999933,,,,,0.0,False,29.777272727272727
 2026,17,Singapore Grand Prix,street,Q,Sergio Perez,PER,Cadillac,,20.0,True,,,Q1,95.123,3.75,,,,,0.0,False,29.777272727272727
 2026,17,Singapore Grand Prix,street,Q,Valtteri Bottas,BOT,Cadillac,,21.0,True,,,Q1,95.984,4.61099999999999,,,,,0.0,False,29.777272727272727
 2026,17,Singapore Grand Prix,street,Q,Isack Hadjar,HAD,Red Bull Racing,,22.0,False,,,,,,,,,,0.0,False,29.777272727272727
-2026,17,Singapore Grand Prix,street,S,Max Verstappen,VER,Red Bull Racing,1.0,1.0,True,Finished,,,,,106.017,0.39099999999999113,106.653,0.0,8.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Lewis Hamilton,HAM,Ferrari,6.0,2.0,True,Finished,,,,,105.626,0.0,106.811,0.15800000000000125,7.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Charles Leclerc,LEC,Ferrari,3.0,3.0,True,Finished,,,,,106.738,1.1119999999999948,107.625,0.9719999999999942,6.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Kimi Antonelli,ANT,Mercedes,7.0,4.0,True,Finished,,,,,107.166,1.539999999999992,107.801,1.1479999999999961,5.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Liam Lawson,LAW,Racing Bulls,8.0,5.0,True,Finished,,,,,106.272,0.6460000000000008,107.639,0.98599999999999,4.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Oliver Bearman,BEA,Haas F1 Team,13.0,6.0,True,Finished,,,,,106.627,1.0009999999999906,107.363,0.7099999999999937,3.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Nico Hulkenberg,HUL,Audi,12.0,7.0,True,Finished,,,,,107.427,1.801000000000002,107.791,1.137999999999991,2.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Lando Norris,NOR,McLaren,5.0,8.0,True,Finished,,,,,,,,,1.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Pierre Gasly,GAS,Alpine,10.0,9.0,True,Finished,,,,,107.776,2.1499999999999915,108.542,1.8889999999999958,0.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Esteban Ocon,OCO,Haas F1 Team,16.0,10.0,True,Finished,,,,,108.012,2.3859999999999957,108.361,1.7079999999999984,0.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Fernando Alonso,ALO,Aston Martin,15.0,11.0,True,Finished,,,,,108.596,2.969999999999999,109.2555,2.602499999999992,0.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Carlos Sainz,SAI,Williams,22.0,12.0,True,Finished,,,,,108.903,3.277000000000001,109.495,2.8419999999999987,0.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Arvid Lindblad,LIN,Racing Bulls,17.0,13.0,True,Finished,,,,,108.912,3.2860000000000014,109.545,2.891999999999996,0.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Oscar Piastri,PIA,McLaren,4.0,14.0,True,Retired,other,,,,107.088,1.461999999999989,107.468,0.8149999999999977,0.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Alexander Albon,ALB,Williams,19.0,15.0,True,Retired,other,,,,110.86,5.233999999999995,111.0915,4.438499999999991,0.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Gabriel Bortoleto,BOR,Audi,14.0,16.0,True,Retired,other,,,,,,,,0.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Valtteri Bottas,BOT,Cadillac,21.0,17.0,True,Retired,other,,,,,,,,0.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Isack Hadjar,HAD,Red Bull Racing,9.0,18.0,True,Retired,other,,,,,,,,0.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Franco Colapinto,COL,Alpine,11.0,19.0,True,Retired,other,,,,,,,,0.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,George Russell,RUS,Mercedes,2.0,20.0,True,Retired,other,,,,,,,,0.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Sergio Perez,PER,Cadillac,20.0,21.0,True,Retired,other,,,,,,,,0.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,S,Lance Stroll,STR,Aston Martin,18.0,22.0,True,Retired,other,,,,,,,,0.0,True,29.852755905511806
-2026,17,Singapore Grand Prix,street,R,Max Verstappen,VER,Red Bull Racing,1.0,1.0,True,Finished,,,,,96.201,0.9989999999999952,97.285,0.4549999999999983,25.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Charles Leclerc,LEC,Ferrari,2.0,2.0,True,Finished,,,,,95.202,0.0,96.92,0.09000000000000341,18.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Kimi Antonelli,ANT,Mercedes,4.0,3.0,True,Finished,,,,,95.589,0.38700000000000045,96.927,0.09700000000000841,15.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Lando Norris,NOR,McLaren,5.0,4.0,True,Finished,,,,,96.282,1.0799999999999983,97.4135,0.5835000000000008,12.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Oscar Piastri,PIA,McLaren,6.0,5.0,True,Finished,,,,,95.665,0.46300000000000807,96.83,0.0,10.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Lewis Hamilton,HAM,Ferrari,3.0,6.0,True,Finished,,,,,97.075,1.8730000000000047,97.957,1.1269999999999953,8.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Liam Lawson,LAW,Racing Bulls,8.0,7.0,True,Finished,,,,,97.193,1.9909999999999997,98.014,1.1839999999999975,6.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Nico Hulkenberg,HUL,Audi,10.0,8.0,True,Finished,,,,,97.055,1.8530000000000086,99.209,2.379000000000005,4.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,George Russell,RUS,Mercedes,19.0,9.0,True,Finished,,,,,97.173,1.9710000000000036,98.621,1.7909999999999968,2.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Isack Hadjar,HAD,Red Bull Racing,22.0,10.0,True,Finished,,,,,95.917,0.7150000000000034,96.885,0.05500000000000682,1.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Pierre Gasly,GAS,Alpine,7.0,11.0,True,Lapped,,,,,97.39,2.1880000000000024,98.783,1.953000000000003,0.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Oliver Bearman,BEA,Haas F1 Team,11.0,12.0,True,Lapped,,,,,97.556,2.353999999999999,98.357,1.527000000000001,0.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Esteban Ocon,OCO,Haas F1 Team,12.0,13.0,True,Lapped,,,,,98.129,2.9270000000000067,98.924,2.0940000000000083,0.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Carlos Sainz,SAI,Williams,13.0,14.0,True,Lapped,,,,,98.326,3.1239999999999952,99.762,2.932000000000002,0.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Arvid Lindblad,LIN,Racing Bulls,9.0,15.0,True,Lapped,,,,,98.27,3.067999999999998,99.845,3.0150000000000006,0.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Fernando Alonso,ALO,Aston Martin,20.0,16.0,True,Lapped,,,,,98.125,2.923000000000002,99.501,2.6710000000000065,0.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Sergio Perez,PER,Cadillac,17.0,17.0,True,Lapped,,,,,98.574,3.372,100.467,3.6370000000000005,0.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Alexander Albon,ALB,Williams,16.0,18.0,True,Retired,other,,,,97.436,2.234000000000009,99.1285,2.298500000000004,0.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Valtteri Bottas,BOT,Cadillac,18.0,19.0,True,Lapped,,,,,100.171,4.969000000000008,102.201,5.370999999999995,0.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Lance Stroll,STR,Aston Martin,21.0,20.0,True,Retired,other,,,,99.137,3.9350000000000023,100.907,4.076999999999998,0.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Franco Colapinto,COL,Alpine,15.0,21.0,True,Retired,other,,,,99.265,4.063000000000002,99.849,3.0190000000000055,0.0,False,30.306874999999998
-2026,17,Singapore Grand Prix,street,R,Gabriel Bortoleto,BOR,Audi,14.0,22.0,True,Retired,other,,,,,,,,0.0,False,30.306874999999998
+2026,17,Singapore Grand Prix,street,S,Max Verstappen,VER,Red Bull Racing,1.0,1.0,True,Finished,,,,,106.017,0.3909999999999911,106.653,0.0,8.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Lewis Hamilton,HAM,Ferrari,6.0,2.0,True,Finished,,,,,105.626,0.0,106.811,0.1580000000000012,7.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Charles Leclerc,LEC,Ferrari,3.0,3.0,True,Finished,,,,,106.738,1.1119999999999948,107.625,0.9719999999999942,6.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Kimi Antonelli,ANT,Mercedes,7.0,4.0,True,Finished,,,,,107.166,1.539999999999992,107.801,1.147999999999996,5.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Liam Lawson,LAW,Racing Bulls,8.0,5.0,True,Finished,,,,,106.272,0.6460000000000008,107.639,0.98599999999999,4.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Oliver Bearman,BEA,Haas F1 Team,13.0,6.0,True,Finished,,,,,106.627,1.0009999999999906,107.363,0.7099999999999937,3.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Nico Hulkenberg,HUL,Audi,12.0,7.0,True,Finished,,,,,107.427,1.801000000000002,107.791,1.137999999999991,2.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Lando Norris,NOR,McLaren,5.0,8.0,True,Finished,,,,,,,,,1.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Pierre Gasly,GAS,Alpine,10.0,9.0,True,Finished,,,,,107.776,2.1499999999999915,108.542,1.888999999999996,0.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Esteban Ocon,OCO,Haas F1 Team,16.0,10.0,True,Finished,,,,,108.012,2.385999999999996,108.361,1.7079999999999984,0.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Fernando Alonso,ALO,Aston Martin,15.0,11.0,True,Finished,,,,,108.596,2.969999999999999,109.2555,2.602499999999992,0.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Carlos Sainz,SAI,Williams,22.0,12.0,True,Finished,,,,,108.903,3.277000000000001,109.495,2.8419999999999987,0.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Arvid Lindblad,LIN,Racing Bulls,17.0,13.0,True,Finished,,,,,108.912,3.2860000000000014,109.545,2.891999999999996,0.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Oscar Piastri,PIA,McLaren,4.0,14.0,True,Retired,other,,,,107.088,1.461999999999989,107.468,0.8149999999999977,0.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Alexander Albon,ALB,Williams,19.0,15.0,True,Retired,other,,,,110.86,5.233999999999995,111.0915,4.438499999999991,0.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Gabriel Bortoleto,BOR,Audi,14.0,16.0,True,Retired,other,,,,,,,,0.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Valtteri Bottas,BOT,Cadillac,21.0,17.0,True,Retired,other,,,,,,,,0.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Isack Hadjar,HAD,Red Bull Racing,9.0,18.0,True,Retired,other,,,,,,,,0.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Franco Colapinto,COL,Alpine,11.0,19.0,True,Retired,other,,,,,,,,0.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,George Russell,RUS,Mercedes,2.0,20.0,True,Retired,other,,,,,,,,0.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Sergio Perez,PER,Cadillac,20.0,21.0,True,Retired,other,,,,,,,,0.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,S,Lance Stroll,STR,Aston Martin,18.0,22.0,True,Retired,other,,,,,,,,0.0,True,29.85275590551181
+2026,17,Singapore Grand Prix,street,R,Max Verstappen,VER,Red Bull Racing,1.0,1.0,True,Finished,,,,,96.201,0.9989999999999952,97.285,0.4549999999999983,25.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Charles Leclerc,LEC,Ferrari,2.0,2.0,True,Finished,,,,,95.202,0.0,96.92,0.0900000000000034,18.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Kimi Antonelli,ANT,Mercedes,4.0,3.0,True,Finished,,,,,95.589,0.3870000000000004,96.927,0.0970000000000084,15.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Lando Norris,NOR,McLaren,5.0,4.0,True,Finished,,,,,96.282,1.0799999999999983,97.4135,0.5835000000000008,12.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Oscar Piastri,PIA,McLaren,6.0,5.0,True,Finished,,,,,95.665,0.463000000000008,96.83,0.0,10.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Lewis Hamilton,HAM,Ferrari,3.0,6.0,True,Finished,,,,,97.075,1.8730000000000049,97.957,1.1269999999999951,8.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Liam Lawson,LAW,Racing Bulls,8.0,7.0,True,Finished,,,,,97.193,1.991,98.014,1.1839999999999975,6.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Nico Hulkenberg,HUL,Audi,10.0,8.0,True,Finished,,,,,97.055,1.8530000000000089,99.209,2.379000000000005,4.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,George Russell,RUS,Mercedes,19.0,9.0,True,Finished,,,,,97.173,1.971000000000004,98.621,1.7909999999999968,2.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Isack Hadjar,HAD,Red Bull Racing,22.0,10.0,True,Finished,,,,,95.917,0.7150000000000034,96.885,0.0550000000000068,1.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Pierre Gasly,GAS,Alpine,7.0,11.0,True,Lapped,,,,,97.39,2.1880000000000024,98.783,1.953000000000003,0.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Oliver Bearman,BEA,Haas F1 Team,11.0,12.0,True,Lapped,,,,,97.556,2.353999999999999,98.357,1.527000000000001,0.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Esteban Ocon,OCO,Haas F1 Team,12.0,13.0,True,Lapped,,,,,98.129,2.9270000000000067,98.924,2.0940000000000083,0.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Carlos Sainz,SAI,Williams,13.0,14.0,True,Lapped,,,,,98.326,3.1239999999999952,99.762,2.932000000000002,0.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Arvid Lindblad,LIN,Racing Bulls,9.0,15.0,True,Lapped,,,,,98.27,3.067999999999998,99.845,3.015000000000001,0.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Fernando Alonso,ALO,Aston Martin,20.0,16.0,True,Lapped,,,,,98.125,2.923000000000002,99.501,2.6710000000000065,0.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Sergio Perez,PER,Cadillac,17.0,17.0,True,Lapped,,,,,98.574,3.372,100.467,3.637000000000001,0.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Alexander Albon,ALB,Williams,16.0,18.0,True,Retired,other,,,,97.436,2.234000000000009,99.1285,2.298500000000004,0.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Valtteri Bottas,BOT,Cadillac,18.0,19.0,True,Lapped,,,,,100.171,4.969000000000008,102.201,5.370999999999995,0.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Lance Stroll,STR,Aston Martin,21.0,20.0,True,Retired,other,,,,99.137,3.9350000000000014,100.907,4.076999999999998,0.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Franco Colapinto,COL,Alpine,15.0,21.0,True,Retired,other,,,,99.265,4.063000000000002,99.849,3.019000000000005,0.0,False,30.306875
+2026,17,Singapore Grand Prix,street,R,Gabriel Bortoleto,BOR,Audi,14.0,22.0,True,Retired,other,,,,,,,,0.0,False,30.306875
+2026,18,United States Grand Prix,mixed,Q,Andrea Kimi Antonelli,ANT,Mercedes,,1.0,True,,,Q3,94.035,0.0,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Max Verstappen,VER,Red Bull Racing,,2.0,True,,,Q3,94.214,0.179000000000002,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Isack Hadjar,HAD,Red Bull Racing,,3.0,True,,,Q3,94.25,0.2150000000000034,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Charles Leclerc,LEC,Ferrari,,4.0,True,,,Q3,94.267,0.2319999999999993,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Lewis Hamilton,HAM,Ferrari,,5.0,True,,,Q3,94.311,0.2760000000000104,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,George Russell,RUS,Mercedes,,6.0,True,,,Q3,94.476,0.4410000000000025,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Oscar Piastri,PIA,McLaren,,7.0,True,,,Q3,94.803,0.7680000000000007,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Lando Norris,NOR,McLaren,,8.0,True,,,Q3,95.049,1.01400000000001,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Arvid Lindblad,LIN,Racing Bulls,,9.0,True,,,Q3,96.049,2.01400000000001,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Liam Lawson,LAW,Racing Bulls,,10.0,True,,,Q2,95.058,1.0230000000000103,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Pierre Gasly,GAS,Alpine,,11.0,True,,,Q2,95.08,1.0450000000000017,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Nico Hülkenberg,HUL,Audi,,12.0,True,,,Q2,95.158,1.1230000000000049,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Gabriel Bortoleto,BOR,Audi,,13.0,True,,,Q2,95.691,1.656000000000006,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Franco Colapinto,COL,Alpine,,14.0,True,,,Q2,95.722,1.6869999999999976,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Fernando Alonso,ALO,Aston Martin,,15.0,True,,,Q2,95.818,1.7830000000000013,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Oliver Bearman,BEA,Haas F1 Team,,16.0,True,,,Q2,96.031,1.996000000000009,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Esteban Ocon,OCO,Haas F1 Team,,17.0,True,,,Q1,96.531,2.4960000000000093,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Lance Stroll,STR,Aston Martin,,18.0,True,,,Q1,96.677,2.64200000000001,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Carlos Sainz,SAI,Williams,,19.0,True,,,Q1,96.77,2.7349999999999994,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Alexander Albon,ALB,Williams,,20.0,True,,,Q1,96.967,2.932000000000002,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Sergio Pérez,PER,Cadillac,,21.0,True,,,Q1,97.433,3.3980000000000103,,,,,0.0,,
+2026,18,United States Grand Prix,mixed,Q,Valtteri Bottas,BOT,Cadillac,,22.0,True,,,Q1,97.523,3.4879999999999995,,,,,0.0,,
