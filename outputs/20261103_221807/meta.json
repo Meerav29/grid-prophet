@@ -1,0 +1,13 @@
+{
+  "through_season": 2026,
+  "through_round": 19,
+  "method": "nuts",
+  "elapsed_s": 37.6730797290802,
+  "n_race_obs": 3633,
+  "n_quali_obs": 3825,
+  "n_teams": 21,
+  "n_drivers": 45,
+  "n_rounds": 192,
+  "has_challenger": true,
+  "fitted_at": "20261103_221807"
+}
