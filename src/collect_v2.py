@@ -13,6 +13,8 @@ import fastf1
 import numpy as np
 import pandas as pd
 
+from jolpica_laps import jolpica_clean_air
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)s  %(message)s",
@@ -37,6 +39,41 @@ COLUMNS = [
     "median_clean_air_lap_s", "gap_to_winner_median_clean_air_s",
     "points", "is_wet", "air_temp_c",
 ]
+
+
+# Ergast constructor name -> the FastF1 team names it can stand for. When F1
+# live timing is unavailable FastF1 loads results from Ergast, whose names
+# differ from the ones every earlier row uses, and the pace model would then
+# see a new team. A candidate already used in that season wins; else the first.
+ERGAST_TEAM_ALIASES = {
+    "Red Bull": ["Red Bull Racing"],
+    "Alpine F1 Team": ["Alpine"],
+    "Cadillac F1 Team": ["Cadillac"],
+    "RB F1 Team": ["Racing Bulls", "RB"],
+    "Sauber": ["Kick Sauber", "Sauber"],
+    "Alfa Romeo": ["Alfa Romeo", "Alfa Romeo Racing"],
+}
+
+
+def canonical_team_names(teams: pd.Series, season: int, existing: pd.DataFrame) -> pd.Series:
+    """Map Ergast constructor names onto the FastF1 names `existing` uses for `season`."""
+    known = set()
+    if not existing.empty and "team" in existing:
+        known = set(existing.loc[existing["season"] == season, "team"].dropna())
+
+    def one(name):
+        if not isinstance(name, str) or name in known:
+            return name
+        candidates = ERGAST_TEAM_ALIASES.get(name)
+        if candidates:
+            return next((c for c in candidates if c in known), candidates[0])
+        if known:
+            log.warning("  team %r is not among %d's existing team names %s -- kept as is",
+                        name, season, sorted(known))
+        return name
+
+    mapping = {n: one(n) for n in teams.dropna().unique()}
+    return teams.map(lambda n: mapping.get(n, n))
 
 
 def _load_dnf_map() -> dict:
@@ -218,13 +255,20 @@ def _build_race_rows(year: int, rnd: int, event_name: str, circuit_type: str,
     if have_laps:
         for code in results["Abbreviation"].dropna().unique():
             clean_air[code] = _clean_air_pace(laps, code)
-        medians = [v[0] for v in clean_air.values() if v[0] is not None]
-        bests = [v[1] for v in clean_air.values() if v[1] is not None]
-        best_median_clean_air = min(medians) if medians else None
-        best_of_best_clean_air = min(bests) if bests else None
-    else:
-        best_median_clean_air = None
-        best_of_best_clean_air = None
+    elif session_code == "R":
+        # jolpica has Grand Prix laps but no sprint laps, so sprints stay blank.
+        try:
+            clean_air = jolpica_clean_air(year, rnd)
+            log.warning("  %d Round %d R: no FastF1 laps -- clean-air pace from jolpica lap times "
+                        "(%d drivers)", year, rnd, sum(v[0] is not None for v in clean_air.values()))
+        except Exception as exc:
+            log.warning("  %d Round %d R: jolpica lap fallback failed: %s -- pace left blank",
+                        year, rnd, exc)
+            clean_air = {}
+    medians = [v[0] for v in clean_air.values() if v[0] is not None]
+    bests = [v[1] for v in clean_air.values() if v[1] is not None]
+    best_median_clean_air = min(medians) if medians else None
+    best_of_best_clean_air = min(bests) if bests else None
 
     for _, r in results.iterrows():
         status = str(r.get("Status", ""))
@@ -309,6 +353,7 @@ def build_driver_rounds(start_year: int, end_year: int, existing: pd.DataFrame) 
                 combined = combined[~((combined["season"] == year) & (combined["round"] == rnd))]
 
             new_df = pd.DataFrame(round_rows, columns=COLUMNS)
+            new_df["team"] = canonical_team_names(new_df["team"], year, combined)
             combined = pd.concat([combined, new_df], ignore_index=True) if not combined.empty else new_df
             combined.to_csv(DRIVER_ROUNDS_CSV, index=False)
 
