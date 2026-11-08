@@ -1,0 +1,2 @@
+season,round,path,fell_back,early_season,warm_start_s,fallback_s,total_s,warm_target_s,applied_target_s,regression
+2026,20,warm_start,False,False,114.17644770001061,0.0,114.17644770001061,120.0,120.0,False

@@ -40,6 +40,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
+from event_names import circuit_key
 from sim.race import GRID_LOCK_BASE_PENALTY_S
 
 # Sec 5's hand rating runs 1..5; the search runs wider so a fit is never
@@ -83,11 +84,11 @@ class CircuitOvertakingFit:
 
 @dataclass
 class OvertakingData:
-    by_circuit: dict = field(default_factory=dict)   # event_name -> CircuitOvertakingFit
-    skipped: dict = field(default_factory=dict)      # event_name -> why no fit
+    by_circuit: dict = field(default_factory=dict)   # circuit_key(event) -> CircuitOvertakingFit
+    skipped: dict = field(default_factory=dict)      # circuit_key(event) -> why no fit
 
     def fit_for(self, event_name) -> CircuitOvertakingFit | None:
-        return self.by_circuit.get(event_name)
+        return self.by_circuit.get(circuit_key(event_name))
 
 
 def difficulty_grid() -> np.ndarray:
@@ -95,11 +96,11 @@ def difficulty_grid() -> np.ndarray:
 
 
 def hand_ratings(circuits: pd.DataFrame) -> dict:
-    """`data/circuits.csv` as event_name -> overtaking_difficulty."""
+    """`data/circuits.csv` as circuit_key(event_name) -> overtaking_difficulty."""
     if circuits is None or circuits.empty or "overtaking_difficulty" not in circuits.columns:
         return {}
     rows = circuits.dropna(subset=["event_name", "overtaking_difficulty"])
-    return {str(e): float(v) for e, v in zip(rows["event_name"], rows["overtaking_difficulty"])}
+    return {circuit_key(e): float(v) for e, v in zip(rows["event_name"], rows["overtaking_difficulty"])}
 
 
 def _round_pair_counts(pace: np.ndarray, grid: np.ndarray, finish: np.ndarray,
@@ -196,12 +197,13 @@ def build_overtaking_data(driver_rounds: pd.DataFrame, circuits: pd.DataFrame | 
     data = OvertakingData()
     if df.empty:
         return data
-    for event_name, rows in df.groupby("event_name", sort=True):
-        fit = fit_circuit(rows, str(event_name), ratings.get(str(event_name)))
+    # One fit per track: accent variants and same-track renames pool together.
+    for key, rows in df.groupby(df["event_name"].map(circuit_key), sort=True):
+        fit = fit_circuit(rows, key, ratings.get(key))
         if fit is None:
-            data.skipped[str(event_name)] = f"no round with >= {MIN_FINISHERS_PER_ROUND} usable finishers"
+            data.skipped[key] = f"no round with >= {MIN_FINISHERS_PER_ROUND} usable finishers"
         else:
-            data.by_circuit[str(event_name)] = fit
+            data.by_circuit[key] = fit
     return data
 
 

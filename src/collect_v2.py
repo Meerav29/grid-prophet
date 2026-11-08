@@ -13,6 +13,7 @@ import fastf1
 import numpy as np
 import pandas as pd
 
+from event_names import circuit_key
 from jolpica_laps import jolpica_clean_air
 
 logging.basicConfig(
@@ -134,7 +135,7 @@ def _clean_air_pace(laps: pd.DataFrame, driver_code: str) -> tuple[float | None,
 
 
 def _circuit_lookup(event_name: str, circuits: pd.DataFrame) -> str:
-    match = circuits[circuits["event_name"] == event_name]
+    match = circuits[circuits["event_name"].map(circuit_key) == circuit_key(event_name)]
     if match.empty:
         log.warning("  No circuit_type entry for %r -- defaulting to 'mixed'", event_name)
         return "mixed"

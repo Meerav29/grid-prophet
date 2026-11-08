@@ -252,6 +252,7 @@ def _circuit_info(circuits: pd.DataFrame, driver_rounds: pd.DataFrame, season: i
     `data/circuits.csv` hand rating when it does not -- so a circuit with no
     race history forecasts exactly as it did before the fit existed.
     """
+    from event_names import circuit_key
     from model.overtaking import DEFAULT_DIFFICULTY, circuit_difficulty
 
     rows = driver_rounds[(driver_rounds["season"] == season) & (driver_rounds["round"] == round_)]
@@ -259,7 +260,7 @@ def _circuit_info(circuits: pd.DataFrame, driver_rounds: pd.DataFrame, season: i
         return "mixed", DEFAULT_DIFFICULTY
     event_name = rows.iloc[0]["event_name"]
     circuit_type = rows.iloc[0]["circuit_type"] if pd.notna(rows.iloc[0]["circuit_type"]) else "mixed"
-    match = circuits[circuits["event_name"] == event_name]
+    match = circuits[circuits["event_name"].map(circuit_key) == circuit_key(event_name)]
     hand_rating = float(match.iloc[0]["overtaking_difficulty"]) if not match.empty else None
     return circuit_type, circuit_difficulty(overtaking_data, event_name, hand_rating)
 
