@@ -6,6 +6,8 @@ run, not by unit tests here (see model/pace.py module docstring)."""
 
 import types
 
+import cli
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -451,3 +453,53 @@ class TestGridFromQualiIsWired:
         monkeypatch.setattr(cli, "forecast_weekend", fake_forecast)
         cli.cmd_race(self._race_args(out_dir=str(tmp_path)))
         assert seen["grid_from_quali"] is True and seen["mode"] == "post-quali"
+
+
+class TestGridFile:
+    """`--grid-file`: the published, penalty-adjusted grid, before the race has run."""
+
+    CIRCUITS = TestForecastWeekendWiresBothReliabilityChannels.CIRCUITS
+
+    @staticmethod
+    def _write(tmp_path, rows):
+        path = tmp_path / "grid.csv"
+        pd.DataFrame(rows, columns=["abbreviation", "grid"]).to_csv(path, index=False)
+        return str(path)
+
+    def test_reads_the_grid_in_entrant_order(self, tmp_path):
+        from cli import _grid_from_file
+        path = self._write(tmp_path, [("b", 1), ("c", 2), ("a", 3)])
+        assert list(_grid_from_file(path, ["a", "b", "c"])) == [3, 1, 2]
+
+    @pytest.mark.parametrize("rows", [
+        [("a", 1), ("b", 2)],                       # missing an entrant
+        [("a", 1), ("b", 2), ("c", 3), ("d", 4)],   # extra driver
+        [("a", 1), ("a", 2), ("c", 3)],             # duplicate
+        [("a", 1), ("b", 1), ("c", 3)],             # tied slot
+        [("a", 1), ("b", 2), ("c", 5)],             # not 1..n
+    ])
+    def test_refuses_a_grid_that_does_not_fit_the_entry_list(self, tmp_path, rows):
+        from cli import _grid_from_file
+        with pytest.raises(ValueError):
+            _grid_from_file(self._write(tmp_path, rows), ["a", "b", "c"])
+
+    def test_forecast_weekend_uses_the_file_and_labels_it(self, tmp_path):
+        from model.reliability import build_reliability_data
+        driver_rounds = _sprint_weekend_rounds()
+        entrants = cli._entrants_for_round(driver_rounds, 2024, 2)["abbreviation"].tolist()
+        path = self._write(tmp_path, [(d, i + 1) for i, d in enumerate(reversed(entrants))])
+        idata, data = _fake_fit(driver_rounds)
+        gp, _ = forecast_weekend(idata, data, build_reliability_data(driver_rounds), driver_rounds,
+                                 self.CIRCUITS, season=2024, round_=2, n_trials=200, seed=0,
+                                 mode="post-quali", grid_file=path)
+        assert set(gp["grid_source"]) == {"grid_file"}
+
+    @pytest.mark.parametrize("over", [dict(mode="pre", grid_from_quali=False),
+                                      dict(mode="post-quali", grid_from_quali=True)])
+    def test_cmd_race_refuses_the_file_outside_plain_post_quali(self, capsys, over):
+        args = types.SimpleNamespace(round=2, season=2024, fit_dir="fit", out_dir=None, n_trials=10,
+                                     chains=1, seed=0, grid_file="g.csv", **over)
+        with pytest.raises(SystemExit) as exc:
+            cli.cmd_race(args)
+        assert exc.value.code == 2
+        assert "--grid-file" in capsys.readouterr().err
