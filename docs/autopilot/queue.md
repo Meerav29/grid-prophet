@@ -337,7 +337,26 @@ includes `--grid-from-quali` and the post-quali backtest arm.
 
 ## slice-7: Phase 2 carry-forwards
 
-Status: todo
+Status: merged — PR #20 merged by the review routine 2026-10-20 (`b14a307`).
+
+All four criteria were verified against the diff rather than against the PR
+body. CI (`test`) was green on `3bd3b22`; the diff is 403 lines, inside the
+600-line review cap. The review re-ran the full suite on the PR head
+independently (Python 3.13, pymc 6.3.2, arviz 1.3.0): 297 passed. Five of the
+PR's seven mutations were re-applied independently and each reproduced its
+stated failure count: cli call site 3, backtest call site 3, `event_name`
+ignored 6, no laps fallback 5, deleted laps counted 3. Nothing in the body was
+found overstated.
+
+The backtest has not been run against this slice. `TestSingleCircuitFit`
+asserts that the one-circuit fit equals that circuit's entry in the full fit, so
+no forecast number should move. The Miami fallback is tested only against a
+mocked session. Whether `repair_round.py 2025 6 Q` now matches the hand-repaired
+rows is the owner's check (review pack step 4).
+
+Carried forward, not blocking: `q_segment="laps"` overloads a column that
+currently has no readers. A future reader that treats `q_segment` as Q1/Q2/Q3
+has to handle the flag (decision 2, 2026-10-20).
 
 Spec: `docs/phase2-status.md` "What is still open"; slice-4 notes above.
 
@@ -360,7 +379,24 @@ Acceptance:
 
 ## slice-8: season chaining and `gp season`
 
-Status: todo
+Status: merged — PR #21 merged by the review routine 2026-10-21 (`e69f8c3`).
+
+All six criteria were verified against the diff rather than against the PR
+body. CI (`test`) was green on `503aded`; the diff is 594 lines, inside the
+600-line review cap, with the CLI wiring included. The review re-ran the full
+suite on the PR head independently (Python 3.11, fresh venv): 309 passed.
+Three mutations were applied independently: stepping from the fitted car
+instead of the running one (1 failed), dropping one driver per team from the
+constructor sum (2 failed), and a loader that returns nothing (5 failed).
+
+The backtest has not been run against this slice, and the real
+`fastf1.get_event_schedule` path is untested (every test stubs the loader).
+Review pack step 4 (`gp season` on a real fit, check `current_points` against
+the real 2026 standings) is the owner's check.
+
+Carried forward, not blocking: `final_positions` orders on
+`points * 100 + wins`, which assumes points come in steps of at least 0.5 and
+wins stay under 50. True for every current points table.
 
 Spec: `docs/grid-prophet-v2-spec.md` §3.4, §6 (`gp season`, the two
 championship CSVs), §8 Phase 3.
@@ -387,7 +423,25 @@ Acceptance:
 
 ## slice-9: season-level backtest harness
 
-Status: todo
+Status: merged — PR #22 merged by the review routine 2026-10-23 (`9bef025`).
+
+All four criteria were verified against the diff rather than against the PR
+body. CI (`test`) was green on `28615d9`; the diff is 556 lines, inside the
+600-line review cap. The review re-ran the full suite on the PR head
+independently (Python 3.11, fresh venv): 326 passed. Five mutations were
+applied independently, and each one failed a test: the chain is handed the full
+`driver_rounds` (a leak), failed cutoffs no longer void the gate, the title
+Brier is a mean instead of a sum, the legacy model trains on every other season
+(LOSO), and the CLI ignores `--cutoffs`.
+
+**The real season-level backtest has not been run.** That is the Phase 3 gate,
+and only the owner runs it (PR #22, review pack step 3). The legacy column is a
+rolling Ridge on earlier seasons, not the 0.88 LOSO method (decision
+2026-10-23), so expect it to come in below 0.88.
+
+Carried forward, not blocking: the fixture only has 2024 R1-R2, so the
+end-to-end test runs at cutoff 1. The default 2/6/12 cutoffs have only been
+exercised as `no_rounds_after_cutoff` failures.
 
 Spec: §7 season-level metrics, §8 Phase 3, §4 (legacy benchmark).
 
@@ -410,7 +464,7 @@ Acceptance:
 
 ## slice-10: post-quali calibration
 
-Status: todo
+Status: merged — PR #23, squash-merged into `auto/queue` as c9ae98b by the review routine 2026-10-25.
 
 Spec: `docs/phase2-status.md` caveat 1 ("Calibration was not re-checked for
 post-quali").
