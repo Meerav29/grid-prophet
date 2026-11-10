@@ -1,47 +1,46 @@
-# Autopilot: window 2, Oct 20-26, 2026
+# Autopilot: window 2 finished (Oct 20-26, 2026)
 
-**Read this before you touch anything else.** Scheduled cloud routines are building slices 7-10 from [docs/autopilot/queue.md](docs/autopilot/queue.md) while Meerav is travelling. They open PRs against `auto/queue`, and a separate review routine merges the ones that pass.
+**No routines are running.** Window 2 built slices 7-10 from [docs/autopilot/queue.md](docs/autopilot/queue.md). The review routine merged all four into `auto/queue`, and none were rejected or held. The log is issue [#19](https://github.com/Meerav29/grid-prophet/issues/19).
 
-**`main` does not move.** `auto/queue` was fast-forwarded to `main` at `303e957` on Oct 20, so everything after that point is autopilot work.
+**`auto/queue` has not been merged into `main`.** `main`'s copies of `queue.md` and `decisions.md` still show slices 7-10 as queued. The `auto/queue` copies are the current ones.
 
-## What's queued
+## What window 2 produced
 
-| Day (ET) | Slice |
-|---|---|
-| Tue Oct 20 (afternoon, one-off) | 7: Phase 2 carry-forwards (overtaking call-site test, per-circuit fit, Miami quali fallback) |
-| Wed Oct 21 | 8: season chaining and `gp season` |
-| Fri Oct 23 | 9: season-level backtest harness (built and tested on the fixture, **not run**) |
-| **Sat Oct 24, 8pm** | **US GP (2026 R18) post-quali forecast.** One-off, runs from the `forecast-data` branch and posts to #19 |
-| Sun Oct 25 | 10: post-quali calibration |
+| Slice | PR | What it added |
+|---|---|---|
+| 7 | #20 | Overtaking-fit call sites are test-protected, each forecast fits only its own circuit, and `collect_v2` has a Miami-style quali fallback (`q_segment="laps"`) |
+| 8 | #21 | Season chaining and `gp season`: drivers' and constructors' championships come from the same trials |
+| 9 | #22 | `gp backtest --season-level`: cutoffs 2/6/12, constructor Spearman against legacy, title Brier, 80% coverage. **Built, not run** |
+| 10 | #23 | Post-quali podium calibration (its own CSV, ECE for each arm), plus a list of rounds where post-quali is more than 1.0 nat worse than pre-weekend |
 
-Builds run around 9am ET, review around 2pm ET, and the digest around 7pm ET. Tuesday's one-off build gets an extra 6:30pm review so Wednesday doesn't halt.
+The suite on `auto/queue` reached 335 passing. Every slice merged on unit tests and review, not on the backtest.
 
-## Review in this order when you're back
+## Live forecasts
 
-1. **[docs/autopilot/decisions.md](docs/autopilot/decisions.md)**: entries dated 2026-10-20 or later.
-2. **The tracking issue, [#19](https://github.com/Meerav29/grid-prophet/issues/19)**: digests, halts, and the US GP forecast.
-3. **Any PR still open against `auto/queue`.** These were held or rejected.
-4. **The `auto/queue` → `main` diff.**
+These ran on the `forecast-data` branch, outside the queue:
 
-## The thing to be skeptical about
+- **R18 US GP:** pre-weekend forecast on Oct 23. The Oct 24 post-quali routine failed twice because the cloud proxy blocks `livetiming-mirror.fastf1.dev`. A post-quali forecast was produced later and scored against the race (committed Oct 30).
+- **R19 Mexico City and R20 São Paulo:** pre-weekend and post-quali forecasts, all scored. For R20, winner log loss was 2.24 pre-weekend, 1.44 post-quali on quali order, and 1.11 on the penalty grid.
+- Getting these forecasts out needed three code fixes (jolpica race pace, accent-free event names, `--grid-file`). They live **only** on `forecast-data`. [CLAUDE.md](CLAUDE.md) lists them and says how to port them.
 
-Same as window 1: slices merge on unit tests and review, not on the backtest. Slice 9 *builds* the Phase 3 season-level backtest. It doesn't *run* it. **Phase 3 isn't passed until you run it** (the command is in slice 9's PR). Don't retire `confidence.py` or the pkl before then.
+## Waiting on Meerav
 
-The US GP forecast is the first forecast made without you there. It used a model fitted in the cloud from a data snapshot on the `forecast-data` branch, plus R18 quali fetched on the day. Check its PR or comment for the commands it ran.
-
-## The `forecast-data` branch
-
-It holds `data/driver_rounds.csv` (through 2026 R17) and `data/driver_meta.csv`, force-added because `data/` is gitignored. It exists only so the cloud forecast doesn't re-collect 2018-2026 against FastF1's rate limit. **Never merge it into `main`.**
+1. Read the `decisions.md` entries dated 2026-10-20 or later, **on `auto/queue`**. The one most likely to need your call is the Oct 23 entry: the legacy comparison is a rolling Ridge on earlier seasons, not LOSO, so expect it to come in below 0.88.
+2. Run the season-level backtest. **This is the Phase 3 gate** (see #22's review pack):
+   ```bash
+   PYTHONPATH=src python -m cli backtest --seasons 2022-2025 --season-level --method nuts --n-trials 5000 --out-dir outputs/season_bt
+   ```
+   It needs `data/race_results.csv` and `data/constructor_standings.csv` for the legacy column.
+3. Re-run the post-quali backtest to get the real post-quali ECE (#23, review pack step 4).
+4. Owner checks the routines left you: does `repair_round.py 2025 6 Q` match your hand-repaired Miami rows (#20)? Does `gp season` on a real fit produce `current_points` that match the real 2026 standings (#21)?
+5. Merge `auto/queue` → `main`, then port the `forecast-data` code fixes.
+6. Retire `confidence.py` and the pkl only after step 2 passes.
 
 ## If you're asking a cloud session to do something here
 
 - Read [CLAUDE.md](CLAUDE.md).
-- To continue autopilot work, branch from `auto/queue`. If a slice's PR is open, comment on it rather than pushing to its branch, unless you mean to take it over. In that case comment `HOLD` first so the review routine leaves it alone.
-- To make a forecast, use the `forecast-data` branch.
-
-## Stopping it
-
-Comment `HOLD` on a PR to stop that slice. To stop the routines: `RemoteTrigger` update with `enabled: false` (IDs are in Meerav's Claude memory, not in git), or the web UI at <https://claude.ai/code/routines>.
+- For Phase 3 work, branch from `auto/queue` until it's merged.
+- For forecasts, use the `forecast-data` branch. FastF1's live-timing mirror is blocked from the cloud, so new rounds come in through jolpica.
 
 ---
 

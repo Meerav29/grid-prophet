@@ -1,5 +1,7 @@
 # Grid Prophet — Claude Code Setup Prompt
 
+> **Historical (v1, April 2026).** This describes the original season-level regression, which is now kept only as the benchmark. For the current v2 model see [docs/grid-prophet-v2-spec.md](docs/grid-prophet-v2-spec.md) and [CLAUDE.md](CLAUDE.md).
+
 Copy this entire block into Claude Code to initialize the project.
 
 ---

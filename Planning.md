@@ -1,5 +1,7 @@
 # Grid Prophet — Implementation Plan
 
+> **Historical (v1, April 2026).** This describes the original season-level regression, which is now kept only as the benchmark. For the current v2 model see [docs/grid-prophet-v2-spec.md](docs/grid-prophet-v2-spec.md) and [CLAUDE.md](CLAUDE.md).
+
 This document breaks the project into sequential stages. Each stage is a self-contained unit of work. To implement, tell Claude Code: **"Implement Stage X of PLANNING.md"** — it has everything it needs.
 
 ---

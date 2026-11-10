@@ -1,5 +1,7 @@
 # Grid Prophet — Project Description & Architecture
 
+> **Historical (v1, April 2026).** This describes the original season-level regression, which is now kept only as the benchmark. For the current v2 model see [docs/grid-prophet-v2-spec.md](docs/grid-prophet-v2-spec.md) and [CLAUDE.md](CLAUDE.md).
+
 ## Vision
 
 Predict the 2026 F1 Constructor Championship standings using a lightweight ML model trained on historical F1 data. The core insight driving this project: 2026 is a major regulation change year, and teams that dominate the first 2 races of a regulation era tend to carry that advantage through the season. We want a model that understands this pattern.
