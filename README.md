@@ -6,7 +6,14 @@ ML model trained on ~10 years of F1 data (via FastF1) to predict the 2026 constr
 
 A rebuild is underway that replaces the season-level regression below with a per-driver, per-race hierarchical Bayesian pace model, simulated forward to produce next-race, drivers'-championship, and constructors'-championship forecasts from one engine instead of three separate questions. Full design in [docs/grid-prophet-v2-spec.md](docs/grid-prophet-v2-spec.md).
 
-**Status: Phase 0 (data layer) complete.** `src/collect_v2.py` builds `data/driver_rounds.csv` — one row per driver per session (qualifying/sprint/race) per round, 2018–2026, including a clean-air lap filter, per-round weather, and DNF-cause categorization. Run it with:
+**Status (Nov 2026):** Phases 0-2 are complete: the data layer, the pace and reliability model with its race simulator, then post-quali conditioning, sprints, the reliability split, the overtaking fit and weather. The backtest results are in [docs/phase2-status.md](docs/phase2-status.md). Phase 3 (season chaining, both championships, a season-level backtest against this v1 model) is built on the `auto/queue` branch. It hasn't passed yet, because its backtest hasn't been run. Race forecasts with v2:
+
+```bash
+PYTHONPATH=src python -m cli fit --through 2026:17
+PYTHONPATH=src python -m cli race --round 18 --mode post-quali --grid-from-quali
+```
+
+**Data layer.** `src/collect_v2.py` builds `data/driver_rounds.csv` — one row per driver per session (qualifying/sprint/race) per round, 2018–2026, including a clean-air lap filter, per-round weather, and DNF-cause categorization. Run it with:
 
 ```bash
 PYTHONPATH=src python -m collect_v2 --start-year 2018 --end-year 2026   # resumable; re-run to pick up new rounds
