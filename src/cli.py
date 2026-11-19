@@ -249,6 +249,31 @@ def _round_event_name(driver_rounds: pd.DataFrame, season: int, round_: int):
     return rows.iloc[0]["event_name"] if not rows.empty else None
 
 
+def _grid_from_file(path: str, driver_ids: list) -> np.ndarray:
+    """Grand Prix starting grid read from a CSV (`abbreviation,grid`), for the
+    real penalty-adjusted order published before the race has run. Opt-in via
+    `gp race --mode post-quali --grid-file PATH`.
+
+    Raises rather than guessing: the file must name every entrant exactly once
+    and its slots must be exactly 1..n, or a typo would silently produce a
+    plausible-looking but wrong grid."""
+    df = pd.read_csv(path)
+    if not {"abbreviation", "grid"} <= set(df.columns):
+        raise ValueError(f"{path} needs columns 'abbreviation' and 'grid'.")
+    dupes = sorted(df.loc[df["abbreviation"].duplicated(), "abbreviation"].unique())
+    if dupes:
+        raise ValueError(f"Duplicate drivers {dupes} in {path}.")
+    missing = [d for d in driver_ids if d not in set(df["abbreviation"])]
+    extra = sorted(set(df["abbreviation"]) - set(driver_ids))
+    if missing or extra:
+        raise ValueError(f"{path} does not match the entry list: missing {missing}, extra {extra}.")
+    by_driver = dict(zip(df["abbreviation"], df["grid"]))
+    grid = np.array([by_driver[d] for d in driver_ids], dtype=int)
+    if sorted(grid.tolist()) != list(range(1, len(driver_ids) + 1)):
+        raise ValueError(f"Grid slots in {path} must be exactly 1..{len(driver_ids)}.")
+    return grid
+
+
 def _circuit_info(circuits: pd.DataFrame, driver_rounds: pd.DataFrame, season: int, round_: int,
                    overtaking_data=None) -> tuple[str, float]:
     """(circuit_type, overtaking_difficulty) for one round.
@@ -258,6 +283,7 @@ def _circuit_info(circuits: pd.DataFrame, driver_rounds: pd.DataFrame, season: i
     `data/circuits.csv` hand rating when it does not -- so a circuit with no
     race history forecasts exactly as it did before the fit existed.
     """
+    from event_names import circuit_key
     from model.overtaking import DEFAULT_DIFFICULTY, circuit_difficulty
 
     rows = driver_rounds[(driver_rounds["season"] == season) & (driver_rounds["round"] == round_)]
@@ -265,7 +291,7 @@ def _circuit_info(circuits: pd.DataFrame, driver_rounds: pd.DataFrame, season: i
         return "mixed", DEFAULT_DIFFICULTY
     event_name = _round_event_name(driver_rounds, season, round_)
     circuit_type = rows.iloc[0]["circuit_type"] if pd.notna(rows.iloc[0]["circuit_type"]) else "mixed"
-    match = circuits[circuits["event_name"] == event_name]
+    match = circuits[circuits["event_name"].map(circuit_key) == circuit_key(event_name)]
     hand_rating = float(match.iloc[0]["overtaking_difficulty"]) if not match.empty else None
     return circuit_type, circuit_difficulty(overtaking_data, event_name, hand_rating)
 
@@ -285,7 +311,8 @@ def _hazard_grid(grid, quali_pace: np.ndarray) -> np.ndarray:
 def forecast_weekend(idata, data, reliability_data, driver_rounds: pd.DataFrame, circuits: pd.DataFrame,
                       season: int, round_: int, n_trials: int = 50_000, seed: int = 0,
                       mode: str = "pre", overtaking_data=None,
-                      grid_from_quali: bool = False) -> tuple[pd.DataFrame, pd.DataFrame | None]:
+                      grid_from_quali: bool = False,
+                      grid_file: str | None = None) -> tuple[pd.DataFrame, pd.DataFrame | None]:
     """Forecast one round's events: `(grand_prix, sprint_or_None)`.
 
     `mode="pre"` simulates quali for the grid, `mode="post-quali"` uses the
@@ -321,7 +348,10 @@ def forecast_weekend(idata, data, reliability_data, driver_rounds: pd.DataFrame,
     grid = None
     grid_source = "simulated"
     if mode == "post-quali":
-        if grid_from_quali:
+        if grid_file is not None:
+            grid_source = "grid_file"
+            grid = _grid_from_file(grid_file, driver_ids)
+        elif grid_from_quali:
             grid_source = "quali_classification"
             grid = _quali_grid_for_round(driver_rounds, season, round_, driver_ids)
             print(f"  WARNING: grid read from the quali classification for {season}:{round_}; "
@@ -413,6 +443,11 @@ def forecast_race(*args, **kwargs) -> pd.DataFrame:
 
 
 def cmd_race(args):
+    grid_file = getattr(args, "grid_file", None)
+    if grid_file is not None and (args.mode != "post-quali" or args.grid_from_quali):
+        print("--grid-file needs --mode post-quali and cannot be combined with "
+              "--grid-from-quali.", file=sys.stderr)
+        sys.exit(2)
     if args.grid_from_quali and args.mode != "post-quali":
         print("--grid-from-quali only applies to --mode post-quali; refusing to run a "
               "pre-weekend forecast that would ignore it.", file=sys.stderr)
@@ -451,7 +486,8 @@ def cmd_race(args):
     forecast, sprint = forecast_weekend(idata, data, reliability_data, driver_rounds, circuits,
                                          args.season, args.round, n_trials=args.n_trials,
                                          seed=args.seed, mode=args.mode,
-                                         grid_from_quali=args.grid_from_quali)
+                                         grid_from_quali=args.grid_from_quali,
+                                         grid_file=grid_file)
 
     out_path = os.path.join(out_dir, f"race_forecast_{args.season}_{args.round}.csv")
     forecast.to_csv(out_path, index=False)
@@ -672,6 +708,10 @@ def build_parser() -> argparse.ArgumentParser:
                         help="with --mode post-quali, before the race has run: take the Grand Prix "
                              "grid from the quali classification (ignores grid penalties and "
                              "pit-lane starts; a sprint's own grid is unaffected)")
+    p_race.add_argument("--grid-file", default=None,
+                        help="with --mode post-quali, before the race has run: take the Grand Prix "
+                             "grid from a CSV with columns abbreviation,grid (the published, "
+                             "penalty-adjusted starting grid)")
     p_race.set_defaults(func=cmd_race)
 
     p_season = sub.add_parser("season", help="Chain the rest of the fitted season: both championships")
