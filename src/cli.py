@@ -163,6 +163,90 @@ def _entrants_for_round(driver_rounds: pd.DataFrame, season: int, round_: int) -
     return entrants.dropna()
 
 
+# ---------------------------------------------------------------------------
+# future rounds (a Grand Prix that has not run, so has no rows yet)
+# ---------------------------------------------------------------------------
+
+def _round_is_known(driver_rounds: pd.DataFrame, season: int, round_: int) -> bool:
+    rows = driver_rounds[(driver_rounds["season"] == season) & (driver_rounds["round"] == round_)
+                          & (driver_rounds["session_type"].isin(["Q", "R"]))]
+    return not rows.empty
+
+
+def _schedule_event(season: int, round_: int) -> tuple[str, bool] | None:
+    """(event_name, is_sprint_weekend) from the FastF1 calendar, or None if the
+    calendar cannot be reached or has no such round (offline, or a round the
+    calendar does not list). Callers fall back to --event / --sprint."""
+    try:
+        import fastf1
+        schedule = fastf1.get_event_schedule(season, include_testing=False)
+        row = schedule[schedule["RoundNumber"] == round_]
+        if row.empty:
+            return None
+        row = row.iloc[0]
+        return str(row["EventName"]), "sprint" in str(row.get("EventFormat", "")).lower()
+    except Exception:
+        return None
+
+
+def with_future_round(driver_rounds: pd.DataFrame, circuits: pd.DataFrame, season: int, round_: int,
+                      *, entry_list: pd.DataFrame | None = None, event_name: str | None = None,
+                      sprint: bool | None = None, schedule_lookup=None) -> pd.DataFrame:
+    """`driver_rounds` with outcome-free placeholder rows for a round that has
+    not run yet, so `forecast_weekend` can read its entrants, circuit and sprint
+    flag the same way it does for a held-out backtest round. A round that
+    already has rows comes back untouched (same object).
+
+    Entrants: `entry_list` (columns abbreviation, team) if given, else the
+    latest earlier round of the same season -- an assumption the caller should
+    surface, because a mid-season driver change will not show up in it. Event
+    and sprint flag: the explicit arguments, else the FastF1 calendar. The event
+    must be in circuits.csv: silently forecasting an unrated circuit as "mixed"
+    would mislabel the run.
+
+    Only the pre-weekend path may use this. The placeholders carry no grid,
+    finish or points, so nothing downstream can read an outcome from them.
+    """
+    if _round_is_known(driver_rounds, season, round_):
+        return driver_rounds
+
+    if entry_list is not None:
+        missing = {"abbreviation", "team"} - set(entry_list.columns)
+        if missing:
+            raise ValueError(f"entry list is missing column(s) {sorted(missing)}; "
+                             "it needs abbreviation and team")
+        entrants = entry_list[["abbreviation", "team"]].dropna().drop_duplicates("abbreviation")
+    else:
+        prior = driver_rounds[(driver_rounds["season"] == season) & (driver_rounds["round"] < round_)
+                               & (driver_rounds["session_type"].isin(["Q", "R"]))]
+        if prior.empty:
+            raise ValueError(f"No earlier {season} round to take an entry list from; "
+                             "pass --entry-list")
+        entrants = _entrants_for_round(driver_rounds, season, int(prior["round"].max()))
+
+    scheduled = None
+    if event_name is None or sprint is None:
+        scheduled = (schedule_lookup or _schedule_event)(season, round_)
+    if event_name is None:
+        if scheduled is None:
+            raise ValueError(f"Could not find the name of {season} round {round_} on the calendar; "
+                             "pass --event")
+        event_name = scheduled[0]
+    if sprint is None:
+        sprint = bool(scheduled[1]) if scheduled is not None else False
+
+    match = circuits[circuits["event_name"] == event_name]
+    if match.empty:
+        raise ValueError(f"{event_name!r} is not in circuits.csv; add it before forecasting it")
+    circuit_type = match.iloc[0]["circuit_type"]
+
+    sessions = ["Q", "S", "R"] if sprint else ["Q", "R"]
+    rows = [dict(season=season, round=round_, event_name=event_name, circuit_type=circuit_type,
+                 session_type=s, abbreviation=e.abbreviation, team=e.team, points=0.0)
+            for s in sessions for e in entrants.itertuples(index=False)]
+    return pd.concat([driver_rounds, pd.DataFrame(rows)], ignore_index=True)
+
+
 def _round_has_sprint(driver_rounds: pd.DataFrame, season: int, round_: int) -> bool:
     """Whether the round is a sprint weekend, read from the data rather than
     from a hand-kept list of sprint rounds: `collect_v2` writes `session_type
@@ -421,6 +505,31 @@ def cmd_race(args):
     driver_rounds = _load_driver_rounds()
     circuits = _load_circuits()
 
+    if not _round_is_known(driver_rounds, args.season, args.round):
+        if args.mode != "pre":
+            print(f"{args.season}:{args.round} has no data yet, so there is no quali or grid to "
+                  "condition on; --mode post-quali needs the round's data, only --mode pre can forecast it.", file=sys.stderr)
+            sys.exit(2)
+        entry_path = getattr(args, "entry_list", None)
+        entry_list = pd.read_csv(entry_path) if entry_path else None
+        try:
+            driver_rounds = with_future_round(
+                driver_rounds, circuits, args.season, args.round, entry_list=entry_list,
+                event_name=getattr(args, "event", None), sprint=getattr(args, "sprint", None))
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            sys.exit(2)
+        added = driver_rounds[(driver_rounds["season"] == args.season)
+                              & (driver_rounds["round"] == args.round)]
+        print(f"{args.season}:{args.round} is not in driver_rounds.csv yet: forecasting "
+              f"{added.iloc[0]['event_name']} with {added['abbreviation'].nunique()} assumed "
+              "entrants; a driver change since will not show.", file=sys.stderr)
+        if entry_list is None:
+            prior = driver_rounds[(driver_rounds["season"] == args.season)
+                                  & (driver_rounds["round"] < args.round)
+                                  & driver_rounds["session_type"].isin(["Q", "R"])]
+            print(f"  entry list taken from round {int(prior['round'].max())}", file=sys.stderr)
+
     out_dir = args.out_dir or fit_dir
     os.makedirs(out_dir, exist_ok=True)
 
@@ -511,6 +620,15 @@ def build_parser() -> argparse.ArgumentParser:
                         help="with --mode post-quali, before the race has run: take the Grand Prix "
                              "grid from the quali classification (ignores grid penalties and "
                              "pit-lane starts; a sprint's own grid is unaffected)")
+    p_race.add_argument("--entry-list", default=None,
+                        help="CSV (abbreviation,team) for a round that has not run yet; default is "
+                             "the latest earlier round's entrants")
+    p_race.add_argument("--event", default=None,
+                        help="event name as in circuits.csv for a round that has not run yet; "
+                             "default is the FastF1 calendar")
+    p_race.add_argument("--sprint", action="store_true", default=None,
+                        help="treat a not-yet-run round as a sprint weekend; default is the "
+                             "FastF1 calendar")
     p_race.set_defaults(func=cmd_race)
 
     p_bt = sub.add_parser("backtest", help="Rolling backtest (spec sec 7)")
