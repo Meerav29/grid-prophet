@@ -333,6 +333,38 @@ def _round_event_name(driver_rounds: pd.DataFrame, season: int, round_: int):
     return rows.iloc[0]["event_name"] if not rows.empty else None
 
 
+def _grid_from_table(table: pd.DataFrame, driver_ids: list) -> np.ndarray:
+    """Grand Prix starting grid from an explicit table (columns abbreviation,
+    grid_position), aligned to `driver_ids`: for a race that has not run, where
+    the real post-penalty grid is published but not yet in the data. Opt-in via
+    `gp race --mode post-quali --grid-file`.
+
+    Strict, because the grid is typed in by hand: every entrant needs exactly one
+    row, no stray drivers, and the positions must be exactly 1..n. Anything else
+    would give a valid-looking grid that is not the one the race starts from."""
+    missing_cols = {"abbreviation", "grid_position"} - set(table.columns)
+    if missing_cols:
+        raise ValueError(f"grid file is missing column(s) {sorted(missing_cols)}; "
+                          "it needs abbreviation and grid_position")
+    dupes = sorted(table.loc[table["abbreviation"].duplicated(), "abbreviation"].unique())
+    if dupes:
+        raise ValueError(f"grid file has duplicate rows for {dupes}")
+    extra = sorted(set(table["abbreviation"]) - set(driver_ids))
+    if extra:
+        raise ValueError(f"grid file lists {extra}, who are not in this round's entry list")
+    missing = [d for d in driver_ids if d not in set(table["abbreviation"])]
+    if missing:
+        raise ValueError(f"grid file has no row for {missing}")
+    positions = pd.to_numeric(table["grid_position"], errors="coerce")
+    if positions.duplicated().any():
+        raise ValueError("grid file has tied grid positions")
+    n = len(driver_ids)
+    if sorted(positions.tolist()) != list(range(1, n + 1)):
+        raise ValueError(f"grid file positions must be exactly 1..{n}")
+    by_driver = dict(zip(table["abbreviation"], positions))
+    return np.array([int(by_driver[d]) for d in driver_ids])
+
+
 def _circuit_info(circuits: pd.DataFrame, driver_rounds: pd.DataFrame, season: int, round_: int,
                    overtaking_data=None) -> tuple[str, float]:
     """(circuit_type, overtaking_difficulty) for one round.
@@ -369,7 +401,8 @@ def _hazard_grid(grid, quali_pace: np.ndarray) -> np.ndarray:
 def forecast_weekend(idata, data, reliability_data, driver_rounds: pd.DataFrame, circuits: pd.DataFrame,
                       season: int, round_: int, n_trials: int = 50_000, seed: int = 0,
                       mode: str = "pre", overtaking_data=None,
-                      grid_from_quali: bool = False) -> tuple[pd.DataFrame, pd.DataFrame | None]:
+                      grid_from_quali: bool = False,
+                      grid_table: pd.DataFrame | None = None) -> tuple[pd.DataFrame, pd.DataFrame | None]:
     """Forecast one round's events: `(grand_prix, sprint_or_None)`.
 
     `mode="pre"` simulates quali for the grid, `mode="post-quali"` uses the
@@ -405,7 +438,10 @@ def forecast_weekend(idata, data, reliability_data, driver_rounds: pd.DataFrame,
     grid = None
     grid_source = "simulated"
     if mode == "post-quali":
-        if grid_from_quali:
+        if grid_table is not None:
+            grid_source = "grid_file"
+            grid = _grid_from_table(grid_table, driver_ids)
+        elif grid_from_quali:
             grid_source = "quali_classification"
             grid = _quali_grid_for_round(driver_rounds, season, round_, driver_ids)
             print(f"  WARNING: grid read from the quali classification for {season}:{round_}; "
@@ -501,6 +537,15 @@ def cmd_race(args):
         print("--grid-from-quali only applies to --mode post-quali; refusing to run a "
               "pre-weekend forecast that would ignore it.", file=sys.stderr)
         sys.exit(2)
+    grid_file = getattr(args, "grid_file", None)
+    if grid_file and args.mode != "post-quali":
+        print("--grid-file only applies to --mode post-quali; refusing to run a "
+              "pre-weekend forecast that would ignore it.", file=sys.stderr)
+        sys.exit(2)
+    if grid_file and args.grid_from_quali:
+        print("Pass --grid-file or --grid-from-quali, not both: they are two different grids.",
+              file=sys.stderr)
+        sys.exit(2)
     fit_dir = args.fit_dir
     if fit_dir is None:
         if not os.path.exists(LATEST_POINTER):
@@ -560,7 +605,8 @@ def cmd_race(args):
     forecast, sprint = forecast_weekend(idata, data, reliability_data, driver_rounds, circuits,
                                          args.season, args.round, n_trials=args.n_trials,
                                          seed=args.seed, mode=args.mode,
-                                         grid_from_quali=args.grid_from_quali)
+                                         grid_from_quali=args.grid_from_quali,
+                                         grid_table=pd.read_csv(grid_file) if grid_file else None)
 
     out_path = os.path.join(out_dir, f"race_forecast_{args.season}_{args.round}.csv")
     forecast.to_csv(out_path, index=False)
@@ -777,6 +823,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_race.add_argument("--n-trials", type=int, default=50_000)
     p_race.add_argument("--chains", type=int, default=2, help="chains for the post-quali refit")
     p_race.add_argument("--seed", type=int, default=0)
+    p_race.add_argument("--grid-file", default=None,
+                        help="with --mode post-quali, before the race has run: CSV "
+                             "(abbreviation,grid_position) of the actual starting grid, e.g. the "
+                             "published post-penalty grid. Positions must be exactly 1..n")
     p_race.add_argument("--grid-from-quali", action="store_true",
                         help="with --mode post-quali, before the race has run: take the Grand Prix "
                              "grid from the quali classification (ignores grid penalties and "
