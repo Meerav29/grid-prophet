@@ -262,13 +262,17 @@ so not built this session -- flagged as real gaps, not silently dropped):
    MCMC pass for reliability wasn't worth it given the backtest already
    needs one fit per round for pace). The mechanical/incident split and the
    grid-position incident effect are phase 2, matching the spec.
-4. **`gp race` entrant lookup only works for rounds already in
-   `driver_rounds.csv`** (`cli._entrants_for_round`). This is correct and
-   sufficient for the backtest (every scored round's entry list already
-   exists in the data) and for re-forecasting a past round, but a genuinely
-   future round (e.g. an actual, not-yet-run 2026 round) needs an explicit
-   entry list wired up -- not built this session, flagged for whoever picks
-   up pre-2026-race-weekend usage.
+4. **~~`gp race` entrant lookup only works for rounds already in
+   `driver_rounds.csv`~~ (resolved).** `_entrants_for_round` is still strict,
+   because the backtest relies on that. For a round that has not run, `gp race
+   --mode pre` now adds outcome-free placeholder rows via
+   `cli.with_future_round`: entrants default to the latest earlier round of the
+   season (override with `--entry-list CSV`, columns abbreviation,team), and
+   the event and sprint flag come from the FastF1 calendar (override with
+   `--event`, `--sprint`). The event must be in `circuits.csv`. The default
+   entry list is an assumption, and the CLI says so on stderr; a mid-season
+   driver change will not show. `--mode post-quali` still refuses a round with
+   no data.
 5. **`overflow encountered in dot` RuntimeWarning** appears during some
    early-cutoff NUTS fits (small-data rounds, `pytensor`'s quadpotential
    step). It didn't produce NaN posteriors or crash any fit in the full
