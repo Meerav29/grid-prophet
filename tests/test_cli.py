@@ -437,7 +437,8 @@ class TestGridFromQualiIsWired:
 
         seen = {}
         monkeypatch.setattr(cli, "load_fit", lambda d: ("idata", "data", "rel", None))
-        monkeypatch.setattr(cli, "_load_driver_rounds", lambda: "driver_rounds")
+        monkeypatch.setattr(cli, "_load_driver_rounds", lambda: pd.DataFrame(
+            [dict(season=2024, round=2, session_type="R", abbreviation="d1", team="T")]))
         monkeypatch.setattr(cli, "_load_driver_meta", lambda: None)
         monkeypatch.setattr(cli, "_load_circuits", lambda: "circuits")
         record = types.SimpleNamespace(path="warm_start", warm_start_s=1.0, total_s=1.0,
@@ -503,3 +504,141 @@ class TestGridFile:
             cli.cmd_race(args)
         assert exc.value.code == 2
         assert "--grid-file" in capsys.readouterr().err
+
+
+class TestFutureRound:
+    """`gp race --mode pre` for a round that has not run yet: the entry list and
+    circuit have to come from somewhere other than the round's own rows."""
+
+    def _history(self):
+        rows = []
+        for rnd, event in [(1, "Bahrain Grand Prix"), (2, "Las Vegas Grand Prix")]:
+            for team, drv in [("Team A", "d1"), ("Team A", "d2"), ("Team B", "d3")]:
+                for s in ("Q", "R"):
+                    rows.append(dict(season=2026, round=rnd, event_name=event, circuit_type="mixed",
+                                      session_type=s, abbreviation=drv, team=team,
+                                      grid_position=1.0, finish_position=1.0, points=5.0))
+        return pd.DataFrame(rows)
+
+    def _circuits(self):
+        return pd.DataFrame({
+            "event_name": ["Las Vegas Grand Prix", "Qatar Grand Prix"],
+            "circuit_type": ["street", "mixed"], "overtaking_difficulty": [4.0, 3.5],
+        })
+
+    def test_known_round_is_returned_untouched(self):
+        from cli import with_future_round
+        df = self._history()
+        out = with_future_round(df, self._circuits(), 2026, 2, schedule_lookup=lambda s, r: None)
+        assert out is df
+
+    def test_defaults_to_the_latest_earlier_rounds_entrants(self):
+        from cli import with_future_round
+        out = with_future_round(self._history(), self._circuits(), 2026, 3,
+                                event_name="Qatar Grand Prix", schedule_lookup=lambda s, r: None)
+        new = out[out["round"] == 3]
+        assert set(new["abbreviation"]) == {"d1", "d2", "d3"}
+        assert set(new["session_type"]) == {"Q", "R"}
+        assert set(new["event_name"]) == {"Qatar Grand Prix"}
+        assert set(new["circuit_type"]) == {"mixed"}
+
+    def test_placeholder_rows_carry_no_outcomes(self):
+        from cli import with_future_round
+        out = with_future_round(self._history(), self._circuits(), 2026, 3,
+                                event_name="Qatar Grand Prix", schedule_lookup=lambda s, r: None)
+        new = out[out["round"] == 3]
+        assert new["grid_position"].isna().all() and new["finish_position"].isna().all()
+
+    def test_explicit_entry_list_overrides_the_default(self):
+        from cli import with_future_round
+        entries = pd.DataFrame({"abbreviation": ["d1", "d9"], "team": ["Team A", "Team C"]})
+        out = with_future_round(self._history(), self._circuits(), 2026, 3, entry_list=entries,
+                                event_name="Qatar Grand Prix", schedule_lookup=lambda s, r: None)
+        assert set(out[out["round"] == 3]["abbreviation"]) == {"d1", "d9"}
+
+    def test_event_and_sprint_come_from_the_schedule_when_not_given(self):
+        from cli import with_future_round
+        out = with_future_round(self._history(), self._circuits(), 2026, 3,
+                                schedule_lookup=lambda s, r: ("Qatar Grand Prix", True))
+        new = out[out["round"] == 3]
+        assert set(new["session_type"]) == {"Q", "S", "R"}
+        assert set(new["event_name"]) == {"Qatar Grand Prix"}
+
+    def test_explicit_event_beats_the_schedule(self):
+        from cli import with_future_round
+        out = with_future_round(self._history(), self._circuits(), 2026, 3,
+                                event_name="Las Vegas Grand Prix", sprint=False,
+                                schedule_lookup=lambda s, r: ("Qatar Grand Prix", True))
+        new = out[out["round"] == 3]
+        assert set(new["event_name"]) == {"Las Vegas Grand Prix"}
+        assert set(new["session_type"]) == {"Q", "R"}
+        assert set(new["circuit_type"]) == {"street"}
+
+    def test_no_event_and_no_schedule_raises(self):
+        from cli import with_future_round
+        with pytest.raises(ValueError, match="--event"):
+            with_future_round(self._history(), self._circuits(), 2026, 3,
+                              schedule_lookup=lambda s, r: None)
+
+    def test_event_missing_from_circuits_csv_raises(self):
+        from cli import with_future_round
+        with pytest.raises(ValueError, match="circuits.csv"):
+            with_future_round(self._history(), self._circuits(), 2026, 3,
+                              event_name="Mars Grand Prix", schedule_lookup=lambda s, r: None)
+
+    def test_no_earlier_round_and_no_entry_list_raises(self):
+        from cli import with_future_round
+        with pytest.raises(ValueError, match="--entry-list"):
+            with_future_round(self._history(), self._circuits(), 2027, 1,
+                              event_name="Qatar Grand Prix", schedule_lookup=lambda s, r: None)
+
+    def test_entry_list_needs_abbreviation_and_team(self):
+        from cli import with_future_round
+        with pytest.raises(ValueError, match="abbreviation"):
+            with_future_round(self._history(), self._circuits(), 2026, 3,
+                              entry_list=pd.DataFrame({"driver": ["d1"]}),
+                              event_name="Qatar Grand Prix", schedule_lookup=lambda s, r: None)
+
+    def test_strict_lookup_still_rejects_the_future_round(self):
+        # the backtest relies on this staying strict
+        with pytest.raises(ValueError):
+            _entrants_for_round(self._history(), 2026, 3)
+
+    def test_race_parser_takes_the_future_round_flags(self):
+        args = build_parser().parse_args(["race", "--round", "21", "--event", "Las Vegas Grand Prix",
+                                          "--entry-list", "e.csv", "--sprint"])
+        assert args.event == "Las Vegas Grand Prix" and args.entry_list == "e.csv" and args.sprint is True
+        assert build_parser().parse_args(["race", "--round", "21"]).sprint is None
+
+    def test_cmd_race_wires_a_future_round_into_pre_mode(self, monkeypatch, tmp_path, capsys):
+        import cli
+        seen = {}
+        monkeypatch.setattr(cli, "load_fit", lambda d: ("idata", "data", "rel", None))
+        monkeypatch.setattr(cli, "_load_driver_rounds", self._history)
+        monkeypatch.setattr(cli, "_load_circuits", self._circuits)
+        monkeypatch.setattr(cli, "_schedule_event", lambda s, r: ("Qatar Grand Prix", False))
+
+        def fake_forecast(idata, data, rel, driver_rounds, circuits, season, round_, **kw):
+            seen["rounds"] = set(driver_rounds["round"])
+            return pd.DataFrame({"driver": ["d1"]}), None
+
+        monkeypatch.setattr(cli, "forecast_weekend", fake_forecast)
+        args = types.SimpleNamespace(round=3, season=2026, mode="pre", fit_dir="fit",
+                                     out_dir=str(tmp_path), n_trials=10, chains=1, seed=0,
+                                     grid_from_quali=False)
+        cli.cmd_race(args)
+        assert 3 in seen["rounds"]
+        assert "round 2" in capsys.readouterr().err  # says which entry list it assumed
+
+    def test_cmd_race_refuses_post_quali_for_a_round_with_no_data(self, monkeypatch, capsys):
+        import cli
+        monkeypatch.setattr(cli, "load_fit", lambda d: ("idata", "data", "rel", None))
+        monkeypatch.setattr(cli, "_load_driver_rounds", self._history)
+        monkeypatch.setattr(cli, "_load_circuits", self._circuits)
+        args = types.SimpleNamespace(round=3, season=2026, mode="post-quali", fit_dir="fit",
+                                     out_dir=None, n_trials=10, chains=1, seed=0,
+                                     grid_from_quali=False)
+        with pytest.raises(SystemExit) as exc:
+            cli.cmd_race(args)
+        assert exc.value.code == 2
+        assert "post-quali" in capsys.readouterr().err

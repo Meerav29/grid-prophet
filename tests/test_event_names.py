@@ -73,3 +73,17 @@ def test_single_circuit_fit_still_pools_renamed_track():
     rows = pd.concat([_rows("Brazilian Grand Prix", 2019, 2), _rows("São Paulo Grand Prix", 2023, 3)])
     data = build_overtaking_data(rows, CIRCUITS, event_name="São Paulo Grand Prix")
     assert data.fit_for("São Paulo Grand Prix").n_rounds == 5
+
+
+def test_future_round_finds_an_accented_scheduled_event_in_circuits_csv():
+    # The FastF1 calendar spells it with the accent; circuits.csv doesn't.
+    from cli import with_future_round
+
+    history = _rows("Mexico City Grand Prix", 2026, 1)
+    history["round"] = 19
+    history["team"] = "Team A"
+    circuits = pd.DataFrame({"event_name": ["Sao Paulo Grand Prix"], "circuit_type": ["street"],
+                             "overtaking_difficulty": [4.0]})
+    out = with_future_round(history, circuits, 2026, 20, event_name="São Paulo Grand Prix",
+                            sprint=False, schedule_lookup=lambda s, r: None)
+    assert set(out.loc[out["round"] == 20, "circuit_type"]) == {"street"}
