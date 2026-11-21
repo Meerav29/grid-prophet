@@ -456,56 +456,6 @@ class TestGridFromQualiIsWired:
         assert seen["grid_from_quali"] is True and seen["mode"] == "post-quali"
 
 
-class TestGridFile:
-    """`--grid-file`: the published, penalty-adjusted grid, before the race has run."""
-
-    CIRCUITS = TestForecastWeekendWiresBothReliabilityChannels.CIRCUITS
-
-    @staticmethod
-    def _write(tmp_path, rows):
-        path = tmp_path / "grid.csv"
-        pd.DataFrame(rows, columns=["abbreviation", "grid"]).to_csv(path, index=False)
-        return str(path)
-
-    def test_reads_the_grid_in_entrant_order(self, tmp_path):
-        from cli import _grid_from_file
-        path = self._write(tmp_path, [("b", 1), ("c", 2), ("a", 3)])
-        assert list(_grid_from_file(path, ["a", "b", "c"])) == [3, 1, 2]
-
-    @pytest.mark.parametrize("rows", [
-        [("a", 1), ("b", 2)],                       # missing an entrant
-        [("a", 1), ("b", 2), ("c", 3), ("d", 4)],   # extra driver
-        [("a", 1), ("a", 2), ("c", 3)],             # duplicate
-        [("a", 1), ("b", 1), ("c", 3)],             # tied slot
-        [("a", 1), ("b", 2), ("c", 5)],             # not 1..n
-    ])
-    def test_refuses_a_grid_that_does_not_fit_the_entry_list(self, tmp_path, rows):
-        from cli import _grid_from_file
-        with pytest.raises(ValueError):
-            _grid_from_file(self._write(tmp_path, rows), ["a", "b", "c"])
-
-    def test_forecast_weekend_uses_the_file_and_labels_it(self, tmp_path):
-        from model.reliability import build_reliability_data
-        driver_rounds = _sprint_weekend_rounds()
-        entrants = cli._entrants_for_round(driver_rounds, 2024, 2)["abbreviation"].tolist()
-        path = self._write(tmp_path, [(d, i + 1) for i, d in enumerate(reversed(entrants))])
-        idata, data = _fake_fit(driver_rounds)
-        gp, _ = forecast_weekend(idata, data, build_reliability_data(driver_rounds), driver_rounds,
-                                 self.CIRCUITS, season=2024, round_=2, n_trials=200, seed=0,
-                                 mode="post-quali", grid_file=path)
-        assert set(gp["grid_source"]) == {"grid_file"}
-
-    @pytest.mark.parametrize("over", [dict(mode="pre", grid_from_quali=False),
-                                      dict(mode="post-quali", grid_from_quali=True)])
-    def test_cmd_race_refuses_the_file_outside_plain_post_quali(self, capsys, over):
-        args = types.SimpleNamespace(round=2, season=2024, fit_dir="fit", out_dir=None, n_trials=10,
-                                     chains=1, seed=0, grid_file="g.csv", **over)
-        with pytest.raises(SystemExit) as exc:
-            cli.cmd_race(args)
-        assert exc.value.code == 2
-        assert "--grid-file" in capsys.readouterr().err
-
-
 class TestFutureRound:
     """`gp race --mode pre` for a round that has not run yet: the entry list and
     circuit have to come from somewhere other than the round's own rows."""
@@ -642,3 +592,57 @@ class TestFutureRound:
             cli.cmd_race(args)
         assert exc.value.code == 2
         assert "post-quali" in capsys.readouterr().err
+
+
+class TestGridFile:
+    """`gp race --mode post-quali --grid-file`: an explicit starting grid (e.g. the
+    published post-penalty grid) for a race that has not run yet."""
+
+    def test_aligns_positions_to_driver_ids(self):
+        from cli import _grid_from_table
+        table = pd.DataFrame({"abbreviation": ["b", "c", "a"], "grid_position": [1, 2, 3]})
+        assert _grid_from_table(table, ["a", "b", "c"]).tolist() == [3, 1, 2]
+
+    def test_rejects_missing_columns(self):
+        from cli import _grid_from_table
+        with pytest.raises(ValueError, match="grid_position"):
+            _grid_from_table(pd.DataFrame({"abbreviation": ["a"]}), ["a"])
+
+    def test_rejects_an_entrant_with_no_row(self):
+        from cli import _grid_from_table
+        table = pd.DataFrame({"abbreviation": ["a", "b"], "grid_position": [1, 2]})
+        with pytest.raises(ValueError, match="c"):
+            _grid_from_table(table, ["a", "b", "c"])
+
+    def test_rejects_a_driver_not_entered(self):
+        from cli import _grid_from_table
+        table = pd.DataFrame({"abbreviation": ["a", "b", "z"], "grid_position": [1, 2, 3]})
+        with pytest.raises(ValueError, match="z"):
+            _grid_from_table(table, ["a", "b"])
+
+    def test_rejects_duplicate_drivers_and_tied_positions(self):
+        from cli import _grid_from_table
+        with pytest.raises(ValueError, match="duplicate"):
+            _grid_from_table(pd.DataFrame({"abbreviation": ["a", "a"], "grid_position": [1, 2]}), ["a"])
+        with pytest.raises(ValueError, match="tied"):
+            _grid_from_table(pd.DataFrame({"abbreviation": ["a", "b"], "grid_position": [1, 1]}),
+                             ["a", "b"])
+
+    def test_rejects_positions_that_are_not_a_one_to_n_grid(self):
+        from cli import _grid_from_table
+        table = pd.DataFrame({"abbreviation": ["a", "b"], "grid_position": [1, 5]})
+        with pytest.raises(ValueError, match="1..2"):
+            _grid_from_table(table, ["a", "b"])
+
+    def test_parser_and_refusals(self, capsys):
+        import cli
+        assert build_parser().parse_args(["race", "--round", "21", "--grid-file", "g.csv"]).grid_file == "g.csv"
+        base = dict(round=2, season=2024, fit_dir="fit", out_dir=None, n_trials=10, chains=1, seed=0)
+        with pytest.raises(SystemExit) as exc:
+            cli.cmd_race(types.SimpleNamespace(mode="pre", grid_from_quali=False,
+                                               grid_file="g.csv", **base))
+        assert exc.value.code == 2 and "--grid-file" in capsys.readouterr().err
+        with pytest.raises(SystemExit) as exc:
+            cli.cmd_race(types.SimpleNamespace(mode="post-quali", grid_from_quali=True,
+                                               grid_file="g.csv", **base))
+        assert exc.value.code == 2 and "not both" in capsys.readouterr().err

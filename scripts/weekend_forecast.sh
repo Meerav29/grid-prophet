@@ -5,7 +5,7 @@
 #   scripts/weekend_forecast.sh <season> <round>              # Saturday, after quali: grid = quali order
 #   scripts/weekend_forecast.sh <season> <round> <grid.csv>   # Sunday, after the FIA posts the grid
 #
-# The grid file has columns abbreviation,grid and must list every entrant once
+# The grid file has columns abbreviation,grid_position and must list every entrant once
 # with slots 1..n (penalties and pit-lane starts already applied). Don't build
 # it from race rows: a pit-lane start read back as P22 made R19 worse.
 #
