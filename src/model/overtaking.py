@@ -195,7 +195,7 @@ def build_overtaking_data(driver_rounds: pd.DataFrame, circuits: pd.DataFrame | 
     ratings = hand_ratings(circuits)
     df = _usable_race_rows(driver_rounds)
     if event_name is not None and not df.empty:
-        df = df[df["event_name"].astype(str) == str(event_name)]
+        df = df[df["event_name"].map(circuit_key) == circuit_key(event_name)]
     if before_season is not None:
         cutoff = (before_season, before_round if before_round is not None else 0)
         keep = [(s, r) < cutoff for s, r in zip(df["season"], df["round"])]

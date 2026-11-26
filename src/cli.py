@@ -235,7 +235,8 @@ def with_future_round(driver_rounds: pd.DataFrame, circuits: pd.DataFrame, seaso
     if sprint is None:
         sprint = bool(scheduled[1]) if scheduled is not None else False
 
-    match = circuits[circuits["event_name"] == event_name]
+    from event_names import circuit_key
+    match = circuits[circuits["event_name"].map(circuit_key) == circuit_key(event_name)]
     if match.empty:
         raise ValueError(f"{event_name!r} is not in circuits.csv; add it before forecasting it")
     circuit_type = match.iloc[0]["circuit_type"]
