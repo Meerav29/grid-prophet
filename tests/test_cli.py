@@ -6,8 +6,6 @@ run, not by unit tests here (see model/pace.py module docstring)."""
 
 import types
 
-import cli
-
 import numpy as np
 import pandas as pd
 import pytest
