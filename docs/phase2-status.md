@@ -160,14 +160,24 @@ never run in anger.
 
 ## What is still open
 
+_Updated 2026-11-10._ Autopilot window 2 built code for most of these items. It
+was merged into `auto/queue` (PRs #20-23) but not into `main`, and none of it
+has been backtested.
+
 - A pre-weekend-only vs. slice-by-slice ablation, if it matters which slices are
-  earning their keep.
+  earning their keep. **Still open.**
 - Post-quali calibration, and whether the confident misses above share a cause.
+  **Tooling built (slice 10, #23):** a per-arm calibration CSV, ECE, and a list
+  of rounds where post-quali is more than 1.0 nat worse. The numbers need a
+  backtest re-run. Diagnosing the misses is still open.
 - Re-run with slice 6 included, to confirm it leaves race outcomes unchanged.
-- `collect_v2` should fall back to session laps when quali results carry no
-  times (Miami 2025), so the repair does not have to be redone by hand.
-- Slice-4 carry-forwards from `docs/autopilot/queue.md`: a test guarding the two
-  overtaking-fit call sites, and fitting only the forecast circuit rather than
-  every circuit on each forecast.
+  **Still open.**
+- ~~`collect_v2` should fall back to session laps when quali results carry no
+  times (Miami 2025).~~ **Done in slice 7 (#20).** Checking it against the
+  hand repair is the owner's job.
+- ~~Slice-4 carry-forwards: a test guarding the two overtaking-fit call sites,
+  and fitting only the forecast circuit.~~ **Done in slice 7 (#20).**
 - Phase 3: `gp season`, both championships, and the comparison against the
-  legacy 0.88.
+  legacy 0.88. **Code built (slices 8-9, #21-22). Not passed:** nobody has run
+  the season-level backtest. Its legacy column is a rolling Ridge, not the 0.88
+  LOSO method, so expect a lower number.
