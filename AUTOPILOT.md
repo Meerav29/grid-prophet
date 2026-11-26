@@ -21,7 +21,7 @@ These ran on the `forecast-data` branch, outside the queue:
 
 - **R18 US GP:** pre-weekend forecast on Oct 23. The Oct 24 post-quali routine failed twice because the cloud proxy blocks `livetiming-mirror.fastf1.dev`. A post-quali forecast was produced later and scored against the race (committed Oct 30).
 - **R19 Mexico City and R20 São Paulo:** pre-weekend and post-quali forecasts, all scored. For R20, winner log loss was 2.24 pre-weekend, 1.44 post-quali on quali order, and 1.11 on the penalty grid.
-- Getting these forecasts out needed three code fixes (jolpica race pace, accent-free event names, `--grid-file`). They have since been ported to `main` (Nov 18).
+- Getting these forecasts out needed three code fixes (jolpica race pace, accent-free event names, `--grid-file`). They have since been ported to `main` (PR #29, Nov 26).
 
 ## Waiting on Meerav
 
@@ -33,7 +33,7 @@ These ran on the `forecast-data` branch, outside the queue:
    It needs `data/race_results.csv` and `data/constructor_standings.csv` for the legacy column.
 3. Re-run the post-quali backtest to get the real post-quali ECE (#23, review pack step 4).
 4. Owner checks the routines left you: does `repair_round.py 2025 6 Q` match your hand-repaired Miami rows (#20)? Does `gp season` on a real fit produce `current_points` that match the real 2026 standings (#21)?
-5. ~~Merge `auto/queue` → `main`, then port the `forecast-data` code fixes.~~ Done: PR #24 (Nov 10), port Nov 18.
+5. ~~Merge `auto/queue` → `main`, then port the `forecast-data` code fixes.~~ Done: PR #24 (Nov 10), port PR #29 (Nov 26).
 6. Retire `confidence.py` and the pkl only after step 2 passes.
 
 ## If you're asking a cloud session to do something here
