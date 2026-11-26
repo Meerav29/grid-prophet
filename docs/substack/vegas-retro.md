@@ -10,7 +10,7 @@ Before the Las Vegas GP I put out a forecast that, for the first time, knew abou
 
 *Alt: Forecast table for all 22 drivers: Verstappen leads with ~39% to win, ~65% for a podium and ~16.2 expected points, then Russell ~15%, Antonelli ~11% and Norris ~10%. Penalised drivers are tagged, and Piastri has under 1% to win and ~3% for a podium.*
 
-Verstappen was the favourite at ~39% to win and ~65% for a podium, with Russell at ~15%, Antonelli at ~11.5% and Norris at ~10%. It was an open forecast on purpose, and nobody on the grid was close to a lock.
+Verstappen was the favourite at ~39% to win and ~65% for a podium, with Russell at ~15%, Antonelli at ~11.5% and Norris at ~10%. It was an open forecast, and nobody on the grid was close to a lock.
 
 ## What actually happened
 
@@ -28,9 +28,9 @@ So the winner was right, and that's the good news. Verstappen at ~39% was the mo
 
 **Sainz.** Started 20th, the forecast had him around 17th, and he finished 8th.
 
-**Russell.** The mirror image. He started 2nd, the model had him finishing around 4th, and he came home 9th. Hadjar (15th) and Lindblad (20th) also finished outside their ranges, though neither of them was as far off as these three.
+**Russell.** The mirror image. He started 2nd, the model had him finishing around 4th, and he came home 9th. Hadjar (started 4th, finished 15th) and Lindblad (started 5th, finished 20th) also finished outside their ranges, though neither of them was as far off as these three.
 
-I don't know why Piastri and Sainz recovered as far as they did, and I'm not going to guess from a results table. What I can say is that the model expects cars to drift back toward where their pace says they belong, and a 10-place penalty is exactly where that assumption gets tested hardest. [how much of the recovery was passing versus other drivers falling back, I haven't looked]
+I don't know why Piastri and Sainz recovered as far as they did, and I'm not going to guess from a results table. What I can say is that the model expects cars to drift back toward where their pace says they belong, and a 10-place penalty is exactly where that assumption gets tested hardest.
 
 ## The penalty comparison, again
 
@@ -55,5 +55,3 @@ That's one race each way now, so the honest summary is that I can't say whether 
 One correction while I'm here: the first version of this analysis said the round 21 data had no pace numbers. That has since been fixed, the pace is back in via a different lap data source, and the refit through Vegas is what I'm using for the Qatar forecast.
 
 Verdict: right winner, a decent podium call with one big hole in it, and no proof either way on penalties.
-
-(Note to self: put the penalty comparison into the backtest instead of arguing it from two races, and look at whether the model is too pessimistic about drivers recovering from big penalties)
