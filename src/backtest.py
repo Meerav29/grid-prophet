@@ -705,7 +705,9 @@ def season_level_summary(rows: pd.DataFrame, seasons: list, cutoffs: list) -> di
     """The season-level block of `backtest_summary.json`. Same discipline as
     `post_quali_summary`: every requested (season, cutoff) is accounted for,
     and `v2_beats_legacy_spearman` is None unless the run is complete -- every
-    cutoff scored and a legacy number beside each one."""
+    cutoff scored and a legacy number beside each one. When it is complete, the
+    verdict is True only if v2's mean Spearman matches or beats legacy's at every
+    cutoff (`v2_beats_legacy_spearman_by_cutoff`), not on the overall mean."""
     out: dict = {"seasons": list(seasons), "cutoffs": list(cutoffs),
                  "legacy_reference_spearman": LEGACY_REFERENCE_SPEARMAN,
                  "n_cutoffs_expected": len(seasons) * len(cutoffs)}
@@ -744,9 +746,17 @@ def season_level_summary(rows: pd.DataFrame, seasons: list, cutoffs: list) -> di
         out["mean_constructor_spearman_legacy"] = (float(ok["constructor_spearman_legacy"].mean())
                                                    if ok["constructor_spearman_legacy"].notna().any()
                                                    else None)
-    out["v2_beats_legacy_spearman"] = (bool(out["mean_constructor_spearman_v2"]
-                                            > out["mean_constructor_spearman_legacy"])
-                                       if not reasons else None)
+    # Spec sec 7, Phase 3: v2 must match or beat legacy at *every* cutoff, so
+    # the verdict is per cutoff. The overall means above are context only; a
+    # run can win on the mean and still fail the gate at one cutoff.
+    if reasons:
+        out["v2_beats_legacy_spearman_by_cutoff"] = None
+        out["v2_beats_legacy_spearman"] = None
+    else:
+        by_cutoff = {k: bool(v["mean_constructor_spearman_v2"] >= v["mean_constructor_spearman_legacy"])
+                     for k, v in per_cutoff.items()}
+        out["v2_beats_legacy_spearman_by_cutoff"] = by_cutoff
+        out["v2_beats_legacy_spearman"] = all(by_cutoff.values())
     return out
 
 

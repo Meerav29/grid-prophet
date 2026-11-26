@@ -141,12 +141,27 @@ def _rows(v2, legacy, statuses=None, cutoffs=None):
 
 
 def test_complete_run_reports_a_real_verdict_per_cutoff():
-    out = season_level_summary(_rows([0.9, 0.8, 0.95], [0.85, 0.85, 0.85]), [2022], [2, 6, 12])
+    out = season_level_summary(_rows([0.9, 0.86, 0.95], [0.85, 0.85, 0.85]), [2022], [2, 6, 12])
     assert out["gate_valid"] is True
     assert out["v2_beats_legacy_spearman"] is True
-    assert out["per_cutoff"]["6"]["mean_constructor_spearman_v2"] == pytest.approx(0.8)
+    assert out["v2_beats_legacy_spearman_by_cutoff"] == {"2": True, "6": True, "12": True}
+    assert out["per_cutoff"]["6"]["mean_constructor_spearman_v2"] == pytest.approx(0.86)
     assert out["per_cutoff"]["6"]["mean_constructor_spearman_legacy"] == pytest.approx(0.85)
     assert out["legacy_reference_spearman"] == 0.88
+
+
+def test_losing_at_one_cutoff_fails_even_when_the_mean_wins():
+    # Spec sec 7, Phase 3: v2 must match or beat legacy at *every* cutoff.
+    # Here v2's mean (0.883) beats legacy's (0.85), but it loses at R6.
+    out = season_level_summary(_rows([0.9, 0.8, 0.95], [0.85, 0.85, 0.85]), [2022], [2, 6, 12])
+    assert out["mean_constructor_spearman_v2"] > out["mean_constructor_spearman_legacy"]
+    assert out["v2_beats_legacy_spearman"] is False
+    assert out["v2_beats_legacy_spearman_by_cutoff"] == {"2": True, "6": False, "12": True}
+
+
+def test_a_tie_at_a_cutoff_counts_as_matching():
+    out = season_level_summary(_rows([0.85, 0.85, 0.85], [0.85, 0.85, 0.85]), [2022], [2, 6, 12])
+    assert out["v2_beats_legacy_spearman"] is True
 
 
 def test_v2_losing_to_legacy_is_false_not_none():
@@ -172,6 +187,7 @@ def test_a_failed_cutoff_cannot_report_a_verdict_and_is_named():
 def test_a_missing_legacy_number_cannot_report_a_verdict():
     out = season_level_summary(_rows([0.9, 0.9, 0.9], [0.1, np.nan, 0.1]), [2022], [2, 6, 12])
     assert out["v2_beats_legacy_spearman"] is None
+    assert out["v2_beats_legacy_spearman_by_cutoff"] is None
     assert any("legacy" in r for r in out["gate_invalid_reasons"])
 
 
