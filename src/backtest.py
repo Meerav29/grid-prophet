@@ -41,6 +41,8 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
+
+from team_names import check_team_names
 from scipy.stats import spearmanr
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -430,7 +432,7 @@ def run_backtest(seasons: list[int], n_trials: int = 5000, method: str = "advi",
     from model.challenger import build_challenger_frame, fit_challenger
     from cli import forecast_race, _load_circuits
 
-    driver_rounds = pd.read_csv(os.path.join(DATA_DIR, "driver_rounds.csv"))
+    driver_rounds = check_team_names(pd.read_csv(os.path.join(DATA_DIR, "driver_rounds.csv")))
     driver_meta_path = os.path.join(DATA_DIR, "driver_meta.csv")
     driver_meta = pd.read_csv(driver_meta_path) if os.path.exists(driver_meta_path) else None
     circuits = _load_circuits()
@@ -774,7 +776,7 @@ def run_season_backtest(seasons: list[int], cutoffs=SEASON_CUTOFFS, n_trials: in
     from model.reliability import build_reliability_data
 
     if driver_rounds is None:
-        driver_rounds = pd.read_csv(os.path.join(DATA_DIR, "driver_rounds.csv"))
+        driver_rounds = check_team_names(pd.read_csv(os.path.join(DATA_DIR, "driver_rounds.csv")))
         meta_path = os.path.join(DATA_DIR, "driver_meta.csv")
         driver_meta = pd.read_csv(meta_path) if os.path.exists(meta_path) else None
     circuits = _load_circuits() if circuits is None else circuits

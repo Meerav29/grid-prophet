@@ -41,7 +41,8 @@ def _parse_through(s: str) -> tuple[int, int]:
 
 
 def _load_driver_rounds() -> pd.DataFrame:
-    return pd.read_csv(DRIVER_ROUNDS_CSV)
+    from team_names import check_team_names
+    return check_team_names(pd.read_csv(DRIVER_ROUNDS_CSV))
 
 
 def _load_driver_meta() -> pd.DataFrame | None:
