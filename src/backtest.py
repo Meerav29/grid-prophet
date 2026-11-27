@@ -153,6 +153,10 @@ def score_round(forecast: pd.DataFrame, driver_rounds: pd.DataFrame, season: int
         "season": season, "round": round_, "n_drivers": len(actual),
         "actual_winner": actual_winner,
         "grid_pole_driver": pole.iloc[0]["abbreviation"] if not pole.empty else None,
+        # The model's win probability for the pole sitter, so the pole-rate check
+        # (Nov 11 review, item B) can compare it with how often pole converts.
+        "p_win_pole_model": (float(p_win_model.get(pole.iloc[0]["abbreviation"], 0.0))
+                             if not pole.empty else float("nan")),
         "log_loss_winner_model": _log_loss_winner(p_win_model, actual_winner),
         "log_loss_winner_pole": _log_loss_winner(p_win_pole, actual_winner),
         "log_loss_winner_pace_rating": _log_loss_winner(p_win_pace, actual_winner),
@@ -420,6 +424,7 @@ def _post_quali_arm(prior_idata, driver_rounds, driver_meta, circuits, reliabili
         calibration_rows.extend(_podium_calibration(
             forecast, _actual_outcomes(driver_rounds, season, round_), season, round_))
     out = {f"{m}_postquali": scored[f"{m}_model"] for m in POST_QUALI_METRICS}
+    out["p_win_pole_postquali"] = scored.get("p_win_pole_model", float("nan"))
     out["postquali_status"] = "ok"
     return out
 

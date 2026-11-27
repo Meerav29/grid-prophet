@@ -93,6 +93,17 @@ def test_score_round_names_the_pole_sitter_and_the_winner():
     assert out["actual_winner"] == race.loc[race["finish_position"] == 1, "abbreviation"].iloc[0]
 
 
+def test_score_round_reports_the_pole_sitters_win_probability():
+    dr = pd.read_csv(FIXTURE)
+    race = dr[(dr["season"] == 2024) & (dr["round"] == 1) & (dr["session_type"] == "R")]
+    pole = race.loc[race["grid_position"] == 1, "abbreviation"].iloc[0]
+    p_win = np.where(race["abbreviation"] == pole, 0.4, 0.6 / (len(race) - 1))
+    forecast = pd.DataFrame({"driver": race["abbreviation"], "p_win": p_win, "p_podium": 0.15,
+                             "p_points": 0.5, "exp_points": np.arange(len(race), 0, -1)})
+    out = score_round(forecast, dr, 2024, 1)
+    assert out["p_win_pole_model"] == pytest.approx(0.4)
+
+
 # --- the arm's calibration rows ----------------------------------------------
 
 def test_the_post_quali_arm_adds_one_calibration_row_per_scored_driver(monkeypatch, tmp_path):
