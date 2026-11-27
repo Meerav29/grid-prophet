@@ -15,6 +15,7 @@ import pandas as pd
 
 from event_names import circuit_key
 from jolpica_laps import jolpica_clean_air
+from team_names import ERGAST_TEAM_ALIASES
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,20 +41,6 @@ COLUMNS = [
     "median_clean_air_lap_s", "gap_to_winner_median_clean_air_s",
     "points", "is_wet", "air_temp_c",
 ]
-
-
-# Ergast constructor name -> the FastF1 team names it can stand for. When F1
-# live timing is unavailable FastF1 loads results from Ergast, whose names
-# differ from the ones every earlier row uses, and the pace model would then
-# see a new team. A candidate already used in that season wins; else the first.
-ERGAST_TEAM_ALIASES = {
-    "Red Bull": ["Red Bull Racing"],
-    "Alpine F1 Team": ["Alpine"],
-    "Cadillac F1 Team": ["Cadillac"],
-    "RB F1 Team": ["Racing Bulls", "RB"],
-    "Sauber": ["Kick Sauber", "Sauber"],
-    "Alfa Romeo": ["Alfa Romeo", "Alfa Romeo Racing"],
-}
 
 
 def canonical_team_names(teams: pd.Series, season: int, existing: pd.DataFrame) -> pd.Series:
