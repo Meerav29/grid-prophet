@@ -54,4 +54,14 @@ That's one race each way now, so the honest summary is that I can't say whether 
 
 One correction while I'm here: the first version of this analysis said the round 21 data had no pace numbers. That has since been fixed, the pace is back in via a different lap data source, and the refit through Vegas is what I'm using for the Qatar forecast.
 
+**Update, Nov 26:** I found a bug in the data behind this forecast. For rounds 18 to 20 one of my data sources spelled some team names differently ("RB F1 Team" instead of "Racing Bulls", "Alpine F1 Team" instead of "Alpine", "Red Bull" instead of "Red Bull Racing"), so the model treated those as brand-new teams it knew nothing about and spread its uncertainty to match. That's where most of Lindblad's and Lawson's ~16% podium chances came from, and it's part of why Verstappen was only ~39%. With the names fixed and the same three forecasts re-run, Verstappen goes to ~47%, Lindblad and Lawson drop to ~2% for a podium, and every score gets better:
+
+| | Winner log loss | Podium Brier | Points Brier | Spearman |
+|---|---|---|---|---|
+| Post-penalty grid | 0.94 → 0.76 | 0.093 → 0.092 | 0.167 → 0.144 | ~0.59 → ~0.66 |
+| Raw qualifying grid | 1.10 → 0.99 | 0.093 → 0.088 | 0.156 → 0.134 | ~0.68 → ~0.71 |
+| Pre-qualifying | 1.47 → 1.37 | 0.092 → 0.086 | 0.158 → 0.135 | ~0.69 → ~0.78 |
+
+The numbers above are what the model actually said before the race, so I've left them alone. The verdict doesn't change either: penalties still gave the best winner call and the worst finishing order, and Piastri and Sainz are still the big misses. The fixed model is gloomier about Alpine, though, so Gasly (5th) and Colapinto (6th) now land outside their ranges and it's 16 of 22 inside instead of 17. The data loader now refuses to run if team names get split like this again.
+
 Verdict: right winner, a decent podium call with one big hole in it, and no proof either way on penalties.
