@@ -82,7 +82,6 @@ A caveat on the data: FastF1 returned no lap data for Vegas, so that round's row
 
 Verdict: right winner, a decent podium call with one big hole in it, and no proof either way on penalties.
 
-(Note to self: check the round 21 statuses and the lap data before refitting, and put the penalty comparison into the backtest instead of arguing it from two races)
 
 **Update, Nov 26:** I found a bug in the data behind this forecast. For rounds 18 to 20 one of my data sources spelled some team names differently ("RB F1 Team" instead of "Racing Bulls", "Alpine F1 Team" instead of "Alpine", "Red Bull" instead of "Red Bull Racing"), so the model treated those as brand-new teams it knew nothing about and spread its uncertainty to match. That's where most of Lindblad's and Lawson's ~16% podium chances came from, and it's part of why Verstappen was only ~39%. With the names fixed and the same three forecasts re-run, Verstappen goes to ~47%, Lindblad and Lawson drop to ~2% for a podium, and every score gets better:
 
