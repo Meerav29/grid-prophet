@@ -177,7 +177,7 @@ def _circuit_info(circuits: pd.DataFrame, driver_rounds: pd.DataFrame, season: i
 def forecast_race(idata, data, reliability_data, driver_rounds: pd.DataFrame, circuits: pd.DataFrame,
                    season: int, round_: int, n_trials: int = 50_000, seed: int = 0) -> pd.DataFrame:
     from model.pace import posterior_pace_draws, posterior_quali_draws
-    from model.reliability import sample_mechanical_dnf_prob
+    from model.reliability import sample_mechanical_dnf_prob, sample_incident_dnf_prob, GRID_BUCKETS
     from sim.race import RaceTrialInputs, simulate_positions, summarize_trials, load_points_table
 
     rng = np.random.default_rng(seed)
@@ -195,6 +195,7 @@ def forecast_race(idata, data, reliability_data, driver_rounds: pd.DataFrame, ci
     race_pace = np.zeros((n_trials, n_drivers))
     quali_pace = np.zeros((n_trials, n_drivers))
     dnf_prob = np.zeros((n_trials, n_drivers))
+    incident_dnf_prob = np.zeros((n_trials, n_drivers, len(GRID_BUCKETS)))
 
     race_nu_all = np.asarray(idata.posterior["race_nu"]).reshape(-1)[draw_idx]
     race_sigma_all = np.asarray(idata.posterior["race_sigma"]).reshape(-1)[draw_idx]
@@ -213,12 +214,18 @@ def forecast_race(idata, data, reliability_data, driver_rounds: pd.DataFrame, ci
         race_pace[:, i] = rp[draw_idx]
         quali_pace[:, i] = qp[draw_idx]
         dnf_prob[:, i] = team_dnf_prob[team]
+        # one draw per grid bucket -- the resolver picks the right one per
+        # trial once it knows that trial's simulated grid (sim.race's
+        # GRID_BUCKETS-indexed selection).
+        for b_idx, (_name, lo, _hi) in enumerate(GRID_BUCKETS):
+            incident_dnf_prob[:, i, b_idx] = sample_incident_dnf_prob(reliability_data, driver, lo, n_trials, rng)
 
     inputs = RaceTrialInputs(
         driver_ids=driver_ids, race_pace=race_pace,
         race_noise_nu=race_nu_all, race_noise_sigma=race_sigma_all,
         quali_pace=quali_pace, quali_noise_sigma=quali_sigma_all,
         dnf_prob=dnf_prob, overtaking_difficulty=overtaking_difficulty,
+        incident_dnf_prob_by_bucket=incident_dnf_prob,
     )
     positions, dnf = simulate_positions(inputs, rng)
     points_table = load_points_table()

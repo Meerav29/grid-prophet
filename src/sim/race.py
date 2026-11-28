@@ -11,7 +11,9 @@ Per simulated trial:
      value from `data/circuits.csv`, exactly as sec 3.3 specifies for phase 1
      ("fixed per-circuit overtaking parameter"; fitting it from data is
      phase 2).
-  4. Draw DNFs (team-level mechanical hazard only, sec 3.2 first cut).
+  4. Draw DNFs: team-level mechanical hazard combined with per-driver
+     incident hazard (grid-position effect, sec 3.2), as independent
+     failure channels.
   5. Order survivors by effective pace, convert to points via the points
      table.
 
@@ -30,6 +32,8 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+
+from model.reliability import GRID_BUCKETS
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
 POINTS_TABLE_CSV = os.path.join(DATA_DIR, "points_tables.csv")
@@ -62,6 +66,13 @@ class RaceTrialInputs:
     quali_noise_sigma: np.ndarray    # (n_trials,)
     dnf_prob: np.ndarray             # (n_trials, n_drivers) -- mechanical DNF probability
     overtaking_difficulty: float     # circuits.csv value, 1 (hard) .. ~5 (easy)
+    # (n_trials, n_drivers, len(GRID_BUCKETS)) -- incident DNF probability per
+    # grid bucket (spec 3.2's grid-position effect); the bucket actually used
+    # is selected per trial from the *simulated* grid, since pre-weekend mode
+    # doesn't know grid position until quali is simulated below. None means
+    # no incident hazard (e.g. existing callers/tests that only model
+    # mechanical DNFs).
+    incident_dnf_prob_by_bucket: np.ndarray | None = None
 
 
 def simulate_positions(inputs: RaceTrialInputs, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
@@ -89,8 +100,18 @@ def simulate_positions(inputs: RaceTrialInputs, rng: np.random.Generator) -> tup
     penalty_per_slot = GRID_LOCK_BASE_PENALTY_S / max(inputs.overtaking_difficulty, 1e-6)
     effective_time = race_time + penalty_per_slot * (grid - 1)
 
-    # --- DNFs ---
-    dnf = rng.random(size=(n_trials, n_drivers)) < inputs.dnf_prob
+    # --- DNFs: mechanical (fixed per trial) combined with incident (depends
+    # on the grid bucket just simulated above) as independent hazards ---
+    total_dnf_prob = inputs.dnf_prob
+    if inputs.incident_dnf_prob_by_bucket is not None:
+        bucket_idx = np.zeros((n_trials, n_drivers), dtype=int)
+        for idx, (_name, lo, hi) in enumerate(GRID_BUCKETS):
+            bucket_idx = np.where((grid >= lo) & (grid <= hi), idx, bucket_idx)
+        incident_prob = np.take_along_axis(
+            inputs.incident_dnf_prob_by_bucket, bucket_idx[:, :, None], axis=2,
+        )[:, :, 0]
+        total_dnf_prob = 1.0 - (1.0 - inputs.dnf_prob) * (1.0 - incident_prob)
+    dnf = rng.random(size=(n_trials, n_drivers)) < total_dnf_prob
 
     # DNF'd cars are sorted after all classified cars, regardless of effective_time.
     sort_key = np.where(dnf, effective_time + 1e6, effective_time)

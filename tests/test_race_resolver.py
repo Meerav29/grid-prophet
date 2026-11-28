@@ -7,7 +7,7 @@ from sim.race import RaceTrialInputs, simulate_positions, summarize_trials, load
 
 
 def _make_inputs(race_pace, quali_pace, overtaking_difficulty, n_trials=4000,
-                  dnf_prob=None, race_sigma=0.3, quali_sigma=0.2):
+                  dnf_prob=None, race_sigma=0.3, quali_sigma=0.2, incident_dnf_prob_by_bucket=None):
     n_drivers = len(race_pace)
     dnf_prob = np.zeros((n_trials, n_drivers)) if dnf_prob is None else dnf_prob
     return RaceTrialInputs(
@@ -19,6 +19,7 @@ def _make_inputs(race_pace, quali_pace, overtaking_difficulty, n_trials=4000,
         quali_noise_sigma=np.full(n_trials, quali_sigma),
         dnf_prob=dnf_prob,
         overtaking_difficulty=overtaking_difficulty,
+        incident_dnf_prob_by_bucket=incident_dnf_prob_by_bucket,
     )
 
 
@@ -73,6 +74,28 @@ class TestSimulatePositions:
         positions, dnf = simulate_positions(inputs, rng)
         assert dnf[:, 0].all()
         assert (positions[:, 0] == 2).all()  # always classified last (behind the finisher)
+
+    def test_incident_prob_selected_by_actual_grid_bucket(self):
+        """Incident hazard depends on the trial's *simulated* grid bucket
+        (front/mid/back), not a fixed pre-race value, since pre-weekend mode
+        only knows grid position after simulating quali (spec 3.2's
+        grid-position effect on incident hazard)."""
+        rng = np.random.default_rng(0)
+        n_trials = 3000
+        n_drivers = 20
+        # near-zero quali noise -> driver i always qualifies at position i+1
+        quali_pace = np.arange(n_drivers, dtype=float)
+        incident = np.zeros((n_trials, n_drivers, 3))  # bucket order: front, mid, back
+        incident[:, :, 0] = 0.01
+        incident[:, :, 1] = 0.01
+        incident[:, :, 2] = 0.9
+        inputs = _make_inputs(
+            race_pace=np.zeros(n_drivers), quali_pace=quali_pace, overtaking_difficulty=5.0,
+            n_trials=n_trials, quali_sigma=0.001, incident_dnf_prob_by_bucket=incident,
+        )
+        positions, dnf = simulate_positions(inputs, rng)
+        assert dnf[:, 0].mean() < 0.05    # grid 1 -> front bucket -> low incident rate
+        assert dnf[:, 19].mean() > 0.7    # grid 20 -> back bucket -> high incident rate
 
     def test_positions_are_a_permutation_of_1_to_n(self):
         rng = np.random.default_rng(1)
