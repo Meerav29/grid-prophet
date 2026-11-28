@@ -16,6 +16,24 @@ import pandas as pd
 import collect_v2 as c
 
 
+def merge_repaired_rows(existing: pd.DataFrame, new_df: pd.DataFrame, season: int, round_: int,
+                        session_type: str) -> pd.DataFrame:
+    """Swap one session's rows in `existing` for `new_df`.
+
+    The new rows' team names go through `collect_v2.canonical_team_names`, the
+    same mapping collect_v2 applies: a round re-fetched through the jolpica
+    fallback otherwise comes back with Ergast names ("RB F1 Team") next to the
+    season's FastF1 ones ("Racing Bulls"). `check_team_names` then refuses to
+    write a file the fit would refuse to load."""
+    from team_names import check_team_names
+
+    keep = existing[~((existing["season"] == season) & (existing["round"] == round_) &
+                      (existing["session_type"] == session_type))]
+    new_df = new_df.copy()
+    new_df["team"] = c.canonical_team_names(new_df["team"], season, keep)
+    return check_team_names(pd.concat([keep, new_df], ignore_index=True))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("season", type=int)
@@ -48,10 +66,8 @@ def main():
         sys.exit(1)
 
     existing = pd.read_csv(c.DRIVER_ROUNDS_CSV)
-    existing = existing[~((existing["season"] == args.season) & (existing["round"] == args.round) &
-                           (existing["session_type"] == args.session_type))]
-    new_df = pd.DataFrame(rows, columns=c.COLUMNS)
-    combined = pd.concat([existing, new_df], ignore_index=True)
+    combined = merge_repaired_rows(existing, pd.DataFrame(rows, columns=c.COLUMNS),
+                                   args.season, args.round, args.session_type)
     combined.to_csv(c.DRIVER_ROUNDS_CSV, index=False)
     print(f"OK: repaired {args.season} R{args.round} {args.session_type} ({len(rows)} rows)")
 
